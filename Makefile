@@ -1,125 +1,105 @@
 # ============================================================
 #  daq-kafka-producer  Makefile
 #
-#  수정 가능한 파일:  config/config.env
-#  사용법:
-#    make build    - 이미지 빌드
-#    make up       - 서비스 시작
-#    make down     - 서비스 중지
-#    make restart  - 재시작
-#    make status   - 컨테이너 상태 확인
-#    make logs     - 전체 로그
-#    make log-svc  - daq-service 로그
-#    make log-gw   - daq-gateway 로그
-#    make push     - 레지스트리에 이미지 push (REGISTRY 설정 필요)
-#    make pull     - 레지스트리에서 이미지 pull
-#    make clean    - 이미지 및 컨테이너 정리
+#  사용법 (개발 PC):
+#    make ap500l          릴리즈 패키지 빌드
+#    make ap500l-clean    릴리즈 폴더 삭제
+#    make clean-all       전체 release/ 삭제
+#    make push            Harbor push
+#
+#  엣지 서버에서는 Makefile 불필요.
+#  release 폴더를 ~/DAQ/daq-system 으로 복사 후:
+#    cd ~/DAQ/daq-system
+#    docker load -i daq-service.tar
+#    docker load -i daq-gateway.tar
+#    docker compose --env-file config/config.env up -d
 # ============================================================
 
-.PHONY: all build up down restart status logs log-svc log-gw push pull clean help
+TARGET  := ap500l
+VERSION := $(shell cat version 2>/dev/null || echo "1.0.0")
 
-CONFIG     := config/config.env
-COMPOSE    := docker compose --env-file $(CONFIG)
-DOCKER     := docker
+RELEASE_DIR := release/daq-$(TARGET)-$(VERSION)
+CONFIG_SRC  := config/config.env
+COMPOSE_SRC := compose/docker-compose-$(TARGET).yml
+IMAGE_TAG   := $(VERSION)
 
-# config.env 로드
-include $(CONFIG)
-export
+.PHONY: all help \
+        ap500l ap500l-clean clean-all push \
+        _release-dir _build-service _build-gateway \
+        _copy-config _copy-compose
 
-# ── 기본 타겟 ─────────────────────────────────────────────────
 all: help
 
-# ── 빌드 ──────────────────────────────────────────────────────
-build:
-	@echo "[daq-kafka-producer] Building images..."
-	$(COMPOSE) build --no-cache
-	@echo "[daq-kafka-producer] Build complete."
-
-# ── 실행 ──────────────────────────────────────────────────────
-up:
-	@echo "[daq-kafka-producer] Starting services (VEHICLE_ID=$(VEHICLE_ID))..."
-	$(COMPOSE) up -d
-	@echo "[daq-kafka-producer] Services started."
-	@$(MAKE) -s status
-
-# ── 중지 ──────────────────────────────────────────────────────
-down:
-	@echo "[daq-kafka-producer] Stopping services..."
-	$(COMPOSE) down
-	@echo "[daq-kafka-producer] Services stopped."
-
-# ── 재시작 ────────────────────────────────────────────────────
-restart:
-	@$(MAKE) -s down
-	@$(MAKE) -s up
-
-# ── 상태 확인 ─────────────────────────────────────────────────
-status:
-	@echo "=== Container Status ==="
-	@$(COMPOSE) ps
+# ============================================================
+#  ap500l 빌드
+# ============================================================
+ap500l: _release-dir _build-service _build-gateway _copy-config _copy-compose
 	@echo ""
-	@echo "=== Gateway gRPC (:$(GATEWAY_GRPC_PORT)) ==="
-	@python3 -c "import socket; s=socket.socket(); s.settimeout(2); \
-	  r=s.connect_ex(('127.0.0.1',$(GATEWAY_GRPC_PORT))); s.close(); \
-	  print('  LISTENING' if r==0 else '  NOT READY')" 2>/dev/null || echo "  python3 required"
-	@echo "=== Service gRPC (:$(SERVICE_GRPC_PORT)) ==="
-	@python3 -c "import socket; s=socket.socket(); s.settimeout(2); \
-	  r=s.connect_ex(('127.0.0.1',$(SERVICE_GRPC_PORT))); s.close(); \
-	  print('  LISTENING' if r==0 else '  NOT READY')" 2>/dev/null || echo "  python3 required"
+	@echo "================================================="
+	@echo "  Release → $(RELEASE_DIR)/"
+	@echo ""
+	@echo "  배포:"
+	@echo "    scp -r $(RELEASE_DIR) user@edge:~/DAQ/daq-system"
+	@echo ""
+	@echo "  엣지 서버 실행:"
+	@echo "    docker load -i daq-service.tar"
+	@echo "    docker load -i daq-gateway.tar"
+	@echo "    docker compose --env-file config/config.env up -d"
+	@echo "================================================="
 
-# ── 로그 ──────────────────────────────────────────────────────
-logs:
-	$(COMPOSE) logs -f --tail=100
+_release-dir:
+	@mkdir -p $(RELEASE_DIR)/config
 
-log-svc:
-	$(DOCKER) logs -f daq-service --tail=100
+_build-service:
+	@echo "[1/2] Building daq-service:$(IMAGE_TAG)..."
+	@docker build -t daq-service:$(IMAGE_TAG) ./daq-service
+	@docker save daq-service:$(IMAGE_TAG) -o $(RELEASE_DIR)/daq-service.tar
+	@echo "      → $(RELEASE_DIR)/daq-service.tar"
 
-log-gw:
-	$(DOCKER) logs -f daq-gateway --tail=100
+_build-gateway:
+	@echo "[2/2] Building daq-gateway:$(IMAGE_TAG)..."
+	@docker build -t daq-gateway:$(IMAGE_TAG) ./daq-gateway
+	@docker save daq-gateway:$(IMAGE_TAG) -o $(RELEASE_DIR)/daq-gateway.tar
+	@echo "      → $(RELEASE_DIR)/daq-gateway.tar"
 
-# ── 레지스트리 ────────────────────────────────────────────────
-push:
-ifndef REGISTRY
-	$(error REGISTRY is not set in config/config.env)
-endif
-	@echo "[daq-kafka-producer] Pushing images to $(REGISTRY)..."
-	$(DOCKER) tag daq-service:$(IMAGE_TAG) $(REGISTRY)/daq-service:$(IMAGE_TAG)
-	$(DOCKER) tag daq-gateway:$(IMAGE_TAG) $(REGISTRY)/daq-gateway:$(IMAGE_TAG)
-	$(DOCKER) push $(REGISTRY)/daq-service:$(IMAGE_TAG)
-	$(DOCKER) push $(REGISTRY)/daq-gateway:$(IMAGE_TAG)
-	@echo "[daq-kafka-producer] Push complete."
+_copy-config:
+	@cp $(CONFIG_SRC) $(RELEASE_DIR)/config/config.env
 
-pull:
-ifndef REGISTRY
-	$(error REGISTRY is not set in config/config.env)
-endif
-	@echo "[daq-kafka-producer] Pulling images from $(REGISTRY)..."
-	$(DOCKER) pull $(REGISTRY)/daq-service:$(IMAGE_TAG)
-	$(DOCKER) pull $(REGISTRY)/daq-gateway:$(IMAGE_TAG)
-	@echo "[daq-kafka-producer] Pull complete."
+_copy-compose:
+	@cp $(COMPOSE_SRC) $(RELEASE_DIR)/docker-compose.yml
+	@cp version        $(RELEASE_DIR)/version
 
 # ── 정리 ──────────────────────────────────────────────────────
-clean:
-	@echo "[daq-kafka-producer] Cleaning containers and images..."
-	$(COMPOSE) down --rmi local --volumes --remove-orphans
-	@echo "[daq-kafka-producer] Clean complete."
+ap500l-clean:
+	@rm -rf $(RELEASE_DIR)
+	@echo "Removed $(RELEASE_DIR)"
+
+clean-all:
+	@rm -rf release/
+	@echo "Removed release/"
+
+# ── Harbor push ───────────────────────────────────────────────
+push:
+ifndef REGISTRY
+	$(error REGISTRY is not set. Edit config/config.env)
+endif
+	@. $(CONFIG_SRC); \
+	docker tag daq-service:$(IMAGE_TAG)  $${REGISTRY}/daq-service:$(IMAGE_TAG); \
+	docker tag daq-gateway:$(IMAGE_TAG)  $${REGISTRY}/daq-gateway:$(IMAGE_TAG); \
+	docker push $${REGISTRY}/daq-service:$(IMAGE_TAG); \
+	docker push $${REGISTRY}/daq-gateway:$(IMAGE_TAG)
+	@echo "Push done."
 
 # ── 도움말 ────────────────────────────────────────────────────
 help:
 	@echo ""
-	@echo "  daq-kafka-producer  배포 도구"
-	@echo "  ================================"
-	@echo "  설정 파일: config/config.env"
+	@echo "  daq-kafka-producer  (version: $(VERSION))"
+	@echo "  ----------------------------------------"
+	@echo "  make ap500l       릴리즈 빌드 → $(RELEASE_DIR)/"
+	@echo "  make ap500l-clean 릴리즈 폴더 삭제"
+	@echo "  make clean-all    전체 release/ 삭제"
+	@echo "  make push         Harbor push (REGISTRY 설정 필요)"
 	@echo ""
-	@echo "  make build    이미지 빌드"
-	@echo "  make up       서비스 시작"
-	@echo "  make down     서비스 중지"
-	@echo "  make restart  재시작"
-	@echo "  make status   상태 확인"
-	@echo "  make logs     전체 로그 (Ctrl+C 로 종료)"
-	@echo "  make log-svc  daq-service 로그"
-	@echo "  make log-gw   daq-gateway 로그"
-	@echo "  make push     레지스트리 push"
-	@echo "  make pull     레지스트리 pull"
-	@echo "  make clean    이미지/컨테이너 정리"
+	@echo "  수정 파일: config/config.env"
+	@echo "  버전 변경: echo '1.0.1' > version"
 	@echo ""

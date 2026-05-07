@@ -1,0 +1,42 @@
+# ============================================================
+#  daq-kafka-producer  AP500L
+#  실행: docker compose --env-file config/config.env up -d
+# ============================================================
+
+services:
+
+  daq-service:
+    image: daq-service:${IMAGE_TAG:-latest}
+    container_name: daq-service
+    restart: unless-stopped
+    network_mode: host
+    devices:
+      - ${CAM0_DEVICE:-/dev/video0}:${CAM0_DEVICE:-/dev/video0}
+      - ${CAM1_DEVICE:-/dev/video1}:${CAM1_DEVICE:-/dev/video1}
+      - ${CAM2_DEVICE:-/dev/video2}:${CAM2_DEVICE:-/dev/video2}
+    env_file:
+      - ./config/config.env
+    environment:
+      GRPC_PORT: ${SERVICE_GRPC_PORT:-50051}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  daq-gateway:
+    image: daq-gateway:${IMAGE_TAG:-latest}
+    container_name: daq-gateway
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - ./config/config.env
+    environment:
+      GRPC_PORT:    ${GATEWAY_GRPC_PORT:-50050}
+      SERVICE_HOST: 127.0.0.1
+      SERVICE_PORT: ${SERVICE_GRPC_PORT:-50051}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

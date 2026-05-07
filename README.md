@@ -1,23 +1,32 @@
 # daq-kafka-producer
 
-DAQ Edge Server 배포 패키지  
+DAQ Edge Server 빌드 & 배포 패키지
 카메라 3대 + GNSS 수집 → Remote Kafka Broker 전송
 
 ---
 
-## 배포 구성
+## 소스 구조 (개발 PC)
 
 ```
-Edge Server
-├── daq-service  (gRPC :50051)  센서 수집 + 브로커 전송
-└── daq-gateway  (gRPC :50050)  tablet dashboard 통신 중계
+daq-kafka-producer/
+├── Makefile
+├── version                          ← 버전 번호
+├── config/
+│   └── config.env                   ← 설정 파일 (여기만 수정)
+├── compose/
+│   └── docker-compose-ap500l.yml
+├── static/ap500l/
+│   ├── install.sh
+│   └── run.sh
+├── daq-service/                     (소스 + Dockerfile)
+└── daq-gateway/                     (소스 + Dockerfile)
 ```
 
 ---
 
-## 시작하기
+## 빌드 & 배포 플로우
 
-### 1. 설정 파일 수정
+### 1. 설정 수정
 
 ```
 config/config.env
@@ -25,63 +34,63 @@ config/config.env
 
 | 항목 | 설명 |
 |------|------|
-| `VEHICLE_ID` | 차량 식별자 |
-| `CAM0/1/2_DEVICE` | 카메라 장치 경로 |
-| `GNSS_SRC_IP` | GNSS 장비 IP |
-| `GNSS_UDP_PORT` | GNSS UDP 수신 포트 |
 | `BROKER_REST_URL` | 원격 Kafka REST Proxy URL |
-| `GATEWAY_GRPC_PORT` | tablet이 접속하는 gRPC 포트 (기본 50050) |
-| `REGISTRY` | Harbor 레지스트리 주소 (선택) |
+| `GNSS_SRC_IP` | GNSS 장비 IP |
+| `VEHICLE_ID` | 차량 식별자 |
 
-### 2. 빌드
+### 2. 릴리즈 패키지 빌드
 
 ```bash
-make build
+make ap500l
 ```
 
-### 3. 실행
+결과물: `release/daq-ap500l-{version}/`
+
+### 3. 엣지 서버에 배포
 
 ```bash
-make up
+# 방법 A: scp 로 복사 후 설치
+scp -r release/daq-ap500l-1.0.0 user@192.168.20.100:~/DAQ
+ssh user@192.168.20.100 "cd ~/DAQ/daq-ap500l-1.0.0 && ./install.sh"
+
+# 방법 B: 직접 복사
+cp -r release/daq-ap500l-1.0.0 ~/DAQ/daq-system
 ```
 
-### 4. 상태 확인
+### 4. 엣지 서버에서 실행
 
 ```bash
-make status
-```
-
-### 5. 중지
-
-```bash
-make down
-```
-
----
-
-## 로그 확인
-
-```bash
-make logs       # 전체
-make log-svc    # daq-service (센서/브로커)
-make log-gw     # daq-gateway (dashboard 통신)
+cd ~/DAQ/daq-system
+./run.sh          # 시작
+./run.sh status   # 상태
+./run.sh logs     # 로그
+./run.sh down     # 중지
 ```
 
 ---
 
-## tablet dashboard 연결
+## release 폴더 구조
 
-`daq-kafka-dashboard` 앱의 설정에서:
+```
+release/daq-ap500l-1.0.0/
+├── docker-compose.yml
+├── install.sh          → ~/DAQ/daq-system 으로 설치
+├── run.sh              → 서비스 시작/중지
+├── version
+├── daq-service.tar     ← docker image
+├── daq-gateway.tar     ← docker image
+└── config/
+    └── config.env      ← 엣지에서 추가 수정 가능
+```
 
-- **서버 주소**: edge server IP
-- **포트**: `50050` (GATEWAY_GRPC_PORT)
+이미지를 tar 로 export 하기 때문에 엣지 서버에서 별도 빌드 불필요.
 
 ---
 
-## Harbor 레지스트리 사용 시
+## 버전 관리
 
 ```bash
-# config/config.env 에 REGISTRY 설정 후
-make push   # 이미지 업로드
-make pull   # 이미지 다운로드 (다른 차량 배포)
+echo "1.0.1" > version
+make ap500l
+# → release/daq-ap500l-1.0.1/ 생성
 ```
