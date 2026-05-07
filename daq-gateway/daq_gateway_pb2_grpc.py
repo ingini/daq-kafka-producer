@@ -4,7 +4,6 @@ import grpc
 import warnings
 
 import daq_gateway_pb2 as daq__gateway__pb2
-import daq_service_pb2 as daq__service__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
@@ -36,73 +35,73 @@ class GatewayStub(object):
             channel: A grpc.Channel.
         """
         self.ping = channel.unary_unary(
-                '/protos.Gateway/ping',
-                request_serializer=daq__service__pb2.void.SerializeToString,
-                response_deserializer=daq__service__pb2.void.FromString,
+                '/ai.swm.trudy.daq.Gateway/ping',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
+                response_deserializer=daq__gateway__pb2.void_.FromString,
                 _registered_method=True)
         self.get_sensors = channel.unary_unary(
-                '/protos.Gateway/get_sensors',
-                request_serializer=daq__service__pb2.void.SerializeToString,
-                response_deserializer=daq__service__pb2.Sensors.FromString,
+                '/ai.swm.trudy.daq.Gateway/get_sensors',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Sensors.FromString,
                 _registered_method=True)
         self.is_sensor_connected = channel.unary_unary(
-                '/protos.Gateway/is_sensor_connected',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.Connection.FromString,
+                '/ai.swm.trudy.daq.Gateway/is_sensor_connected',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Connection.FromString,
                 _registered_method=True)
         self.is_all_sensor_connected = channel.unary_unary(
-                '/protos.Gateway/is_all_sensor_connected',
-                request_serializer=daq__service__pb2.void.SerializeToString,
+                '/ai.swm.trudy.daq.Gateway/is_all_sensor_connected',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
                 response_deserializer=daq__gateway__pb2.Connections.FromString,
                 _registered_method=True)
         self.is_sensor_healthy = channel.unary_unary(
-                '/protos.Gateway/is_sensor_healthy',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.Health.FromString,
+                '/ai.swm.trudy.daq.Gateway/is_sensor_healthy',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Health.FromString,
                 _registered_method=True)
         self.is_all_sensor_healthy = channel.unary_unary(
-                '/protos.Gateway/is_all_sensor_healthy',
-                request_serializer=daq__service__pb2.void.SerializeToString,
+                '/ai.swm.trudy.daq.Gateway/is_all_sensor_healthy',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
                 response_deserializer=daq__gateway__pb2.Healths.FromString,
                 _registered_method=True)
         self.get_sensor_snapshot = channel.unary_unary(
-                '/protos.Gateway/get_sensor_snapshot',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.SensorSnapshot.FromString,
+                '/ai.swm.trudy.daq.Gateway/get_sensor_snapshot',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.SensorSnapshot.FromString,
                 _registered_method=True)
         self.get_all_sensor_snapshot = channel.unary_unary(
-                '/protos.Gateway/get_all_sensor_snapshot',
-                request_serializer=daq__service__pb2.void.SerializeToString,
-                response_deserializer=daq__service__pb2.SensorSnapshots.FromString,
+                '/ai.swm.trudy.daq.Gateway/get_all_sensor_snapshot',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
+                response_deserializer=daq__gateway__pb2.SensorSnapshots.FromString,
                 _registered_method=True)
         self.is_sensor_acquiring = channel.unary_unary(
-                '/protos.Gateway/is_sensor_acquiring',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.Acquisition.FromString,
+                '/ai.swm.trudy.daq.Gateway/is_sensor_acquiring',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Acquisition.FromString,
                 _registered_method=True)
         self.is_all_sensor_acquiring = channel.unary_unary(
-                '/protos.Gateway/is_all_sensor_acquiring',
-                request_serializer=daq__service__pb2.void.SerializeToString,
+                '/ai.swm.trudy.daq.Gateway/is_all_sensor_acquiring',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
                 response_deserializer=daq__gateway__pb2.Acquisitions.FromString,
                 _registered_method=True)
         self.start_sensor_acquisition = channel.unary_unary(
-                '/protos.Gateway/start_sensor_acquisition',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.Acquisition.FromString,
+                '/ai.swm.trudy.daq.Gateway/start_sensor_acquisition',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Acquisition.FromString,
                 _registered_method=True)
         self.start_all_sensor_acquisition = channel.unary_unary(
-                '/protos.Gateway/start_all_sensor_acquisition',
-                request_serializer=daq__service__pb2.void.SerializeToString,
+                '/ai.swm.trudy.daq.Gateway/start_all_sensor_acquisition',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
                 response_deserializer=daq__gateway__pb2.Acquisitions.FromString,
                 _registered_method=True)
         self.stop_sensor_acquisition = channel.unary_unary(
-                '/protos.Gateway/stop_sensor_acquisition',
-                request_serializer=daq__service__pb2.Sensor.SerializeToString,
-                response_deserializer=daq__service__pb2.Acquisition.FromString,
+                '/ai.swm.trudy.daq.Gateway/stop_sensor_acquisition',
+                request_serializer=daq__gateway__pb2.Sensor.SerializeToString,
+                response_deserializer=daq__gateway__pb2.Acquisition.FromString,
                 _registered_method=True)
         self.stop_all_sensor_acquisition = channel.unary_unary(
-                '/protos.Gateway/stop_all_sensor_acquisition',
-                request_serializer=daq__service__pb2.void.SerializeToString,
+                '/ai.swm.trudy.daq.Gateway/stop_all_sensor_acquisition',
+                request_serializer=daq__gateway__pb2.void_.SerializeToString,
                 response_deserializer=daq__gateway__pb2.Acquisitions.FromString,
                 _registered_method=True)
 
@@ -199,79 +198,79 @@ def add_GatewayServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'ping': grpc.unary_unary_rpc_method_handler(
                     servicer.ping,
-                    request_deserializer=daq__service__pb2.void.FromString,
-                    response_serializer=daq__service__pb2.void.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
+                    response_serializer=daq__gateway__pb2.void_.SerializeToString,
             ),
             'get_sensors': grpc.unary_unary_rpc_method_handler(
                     servicer.get_sensors,
-                    request_deserializer=daq__service__pb2.void.FromString,
-                    response_serializer=daq__service__pb2.Sensors.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
+                    response_serializer=daq__gateway__pb2.Sensors.SerializeToString,
             ),
             'is_sensor_connected': grpc.unary_unary_rpc_method_handler(
                     servicer.is_sensor_connected,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.Connection.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.Connection.SerializeToString,
             ),
             'is_all_sensor_connected': grpc.unary_unary_rpc_method_handler(
                     servicer.is_all_sensor_connected,
-                    request_deserializer=daq__service__pb2.void.FromString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
                     response_serializer=daq__gateway__pb2.Connections.SerializeToString,
             ),
             'is_sensor_healthy': grpc.unary_unary_rpc_method_handler(
                     servicer.is_sensor_healthy,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.Health.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.Health.SerializeToString,
             ),
             'is_all_sensor_healthy': grpc.unary_unary_rpc_method_handler(
                     servicer.is_all_sensor_healthy,
-                    request_deserializer=daq__service__pb2.void.FromString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
                     response_serializer=daq__gateway__pb2.Healths.SerializeToString,
             ),
             'get_sensor_snapshot': grpc.unary_unary_rpc_method_handler(
                     servicer.get_sensor_snapshot,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.SensorSnapshot.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.SensorSnapshot.SerializeToString,
             ),
             'get_all_sensor_snapshot': grpc.unary_unary_rpc_method_handler(
                     servicer.get_all_sensor_snapshot,
-                    request_deserializer=daq__service__pb2.void.FromString,
-                    response_serializer=daq__service__pb2.SensorSnapshots.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
+                    response_serializer=daq__gateway__pb2.SensorSnapshots.SerializeToString,
             ),
             'is_sensor_acquiring': grpc.unary_unary_rpc_method_handler(
                     servicer.is_sensor_acquiring,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.Acquisition.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.Acquisition.SerializeToString,
             ),
             'is_all_sensor_acquiring': grpc.unary_unary_rpc_method_handler(
                     servicer.is_all_sensor_acquiring,
-                    request_deserializer=daq__service__pb2.void.FromString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
                     response_serializer=daq__gateway__pb2.Acquisitions.SerializeToString,
             ),
             'start_sensor_acquisition': grpc.unary_unary_rpc_method_handler(
                     servicer.start_sensor_acquisition,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.Acquisition.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.Acquisition.SerializeToString,
             ),
             'start_all_sensor_acquisition': grpc.unary_unary_rpc_method_handler(
                     servicer.start_all_sensor_acquisition,
-                    request_deserializer=daq__service__pb2.void.FromString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
                     response_serializer=daq__gateway__pb2.Acquisitions.SerializeToString,
             ),
             'stop_sensor_acquisition': grpc.unary_unary_rpc_method_handler(
                     servicer.stop_sensor_acquisition,
-                    request_deserializer=daq__service__pb2.Sensor.FromString,
-                    response_serializer=daq__service__pb2.Acquisition.SerializeToString,
+                    request_deserializer=daq__gateway__pb2.Sensor.FromString,
+                    response_serializer=daq__gateway__pb2.Acquisition.SerializeToString,
             ),
             'stop_all_sensor_acquisition': grpc.unary_unary_rpc_method_handler(
                     servicer.stop_all_sensor_acquisition,
-                    request_deserializer=daq__service__pb2.void.FromString,
+                    request_deserializer=daq__gateway__pb2.void_.FromString,
                     response_serializer=daq__gateway__pb2.Acquisitions.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'protos.Gateway', rpc_method_handlers)
+            'ai.swm.trudy.daq.Gateway', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('protos.Gateway', rpc_method_handlers)
+    server.add_registered_method_handlers('ai.swm.trudy.daq.Gateway', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -292,9 +291,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/ping',
-            daq__service__pb2.void.SerializeToString,
-            daq__service__pb2.void.FromString,
+            '/ai.swm.trudy.daq.Gateway/ping',
+            daq__gateway__pb2.void_.SerializeToString,
+            daq__gateway__pb2.void_.FromString,
             options,
             channel_credentials,
             insecure,
@@ -319,9 +318,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/get_sensors',
-            daq__service__pb2.void.SerializeToString,
-            daq__service__pb2.Sensors.FromString,
+            '/ai.swm.trudy.daq.Gateway/get_sensors',
+            daq__gateway__pb2.void_.SerializeToString,
+            daq__gateway__pb2.Sensors.FromString,
             options,
             channel_credentials,
             insecure,
@@ -346,9 +345,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_sensor_connected',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.Connection.FromString,
+            '/ai.swm.trudy.daq.Gateway/is_sensor_connected',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.Connection.FromString,
             options,
             channel_credentials,
             insecure,
@@ -373,8 +372,8 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_all_sensor_connected',
-            daq__service__pb2.void.SerializeToString,
+            '/ai.swm.trudy.daq.Gateway/is_all_sensor_connected',
+            daq__gateway__pb2.void_.SerializeToString,
             daq__gateway__pb2.Connections.FromString,
             options,
             channel_credentials,
@@ -400,9 +399,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_sensor_healthy',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.Health.FromString,
+            '/ai.swm.trudy.daq.Gateway/is_sensor_healthy',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.Health.FromString,
             options,
             channel_credentials,
             insecure,
@@ -427,8 +426,8 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_all_sensor_healthy',
-            daq__service__pb2.void.SerializeToString,
+            '/ai.swm.trudy.daq.Gateway/is_all_sensor_healthy',
+            daq__gateway__pb2.void_.SerializeToString,
             daq__gateway__pb2.Healths.FromString,
             options,
             channel_credentials,
@@ -454,9 +453,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/get_sensor_snapshot',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.SensorSnapshot.FromString,
+            '/ai.swm.trudy.daq.Gateway/get_sensor_snapshot',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.SensorSnapshot.FromString,
             options,
             channel_credentials,
             insecure,
@@ -481,9 +480,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/get_all_sensor_snapshot',
-            daq__service__pb2.void.SerializeToString,
-            daq__service__pb2.SensorSnapshots.FromString,
+            '/ai.swm.trudy.daq.Gateway/get_all_sensor_snapshot',
+            daq__gateway__pb2.void_.SerializeToString,
+            daq__gateway__pb2.SensorSnapshots.FromString,
             options,
             channel_credentials,
             insecure,
@@ -508,9 +507,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_sensor_acquiring',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.Acquisition.FromString,
+            '/ai.swm.trudy.daq.Gateway/is_sensor_acquiring',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.Acquisition.FromString,
             options,
             channel_credentials,
             insecure,
@@ -535,8 +534,8 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/is_all_sensor_acquiring',
-            daq__service__pb2.void.SerializeToString,
+            '/ai.swm.trudy.daq.Gateway/is_all_sensor_acquiring',
+            daq__gateway__pb2.void_.SerializeToString,
             daq__gateway__pb2.Acquisitions.FromString,
             options,
             channel_credentials,
@@ -562,9 +561,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/start_sensor_acquisition',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.Acquisition.FromString,
+            '/ai.swm.trudy.daq.Gateway/start_sensor_acquisition',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.Acquisition.FromString,
             options,
             channel_credentials,
             insecure,
@@ -589,8 +588,8 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/start_all_sensor_acquisition',
-            daq__service__pb2.void.SerializeToString,
+            '/ai.swm.trudy.daq.Gateway/start_all_sensor_acquisition',
+            daq__gateway__pb2.void_.SerializeToString,
             daq__gateway__pb2.Acquisitions.FromString,
             options,
             channel_credentials,
@@ -616,9 +615,9 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/stop_sensor_acquisition',
-            daq__service__pb2.Sensor.SerializeToString,
-            daq__service__pb2.Acquisition.FromString,
+            '/ai.swm.trudy.daq.Gateway/stop_sensor_acquisition',
+            daq__gateway__pb2.Sensor.SerializeToString,
+            daq__gateway__pb2.Acquisition.FromString,
             options,
             channel_credentials,
             insecure,
@@ -643,8 +642,8 @@ class Gateway(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/protos.Gateway/stop_all_sensor_acquisition',
-            daq__service__pb2.void.SerializeToString,
+            '/ai.swm.trudy.daq.Gateway/stop_all_sensor_acquisition',
+            daq__gateway__pb2.void_.SerializeToString,
             daq__gateway__pb2.Acquisitions.FromString,
             options,
             channel_credentials,

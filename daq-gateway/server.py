@@ -45,7 +45,7 @@ class GatewayServicer(gw_grpc.GatewayServicer):
     async def ping(self, request, context):
         async with _make_service_channel() as ch:
             await self._svc_stub(ch).ping(svc_pb.void())
-        return gw_pb.void()
+        return gw_pb.void_()
 
     async def get_sensors(self, request, context):
         async with _make_service_channel() as ch:

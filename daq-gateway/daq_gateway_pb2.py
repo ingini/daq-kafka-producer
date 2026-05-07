@@ -22,24 +22,45 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-import daq_service_pb2 as daq__service__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x64\x61q_gateway.proto\x12\x06protos\x1a\x11\x64\x61q_service.proto\"\x16\n\x06\x44\x65vice\x12\x0c\n\x04name\x18\x01 \x01(\t\"/\n\x0b\x43onnections\x12 \n\x04list\x18\x01 \x03(\x0b\x32\x12.protos.Connection\"\'\n\x07Healths\x12\x1c\n\x04list\x18\x01 \x03(\x0b\x32\x0e.protos.Health\"1\n\x0c\x41\x63quisitions\x12!\n\x04list\x18\x01 \x03(\x0b\x32\x13.protos.Acquisition2\xc5\x06\n\x07Gateway\x12\"\n\x04ping\x12\x0c.protos.void\x1a\x0c.protos.void\x12,\n\x0bget_sensors\x12\x0c.protos.void\x1a\x0f.protos.Sensors\x12\x39\n\x13is_sensor_connected\x12\x0e.protos.Sensor\x1a\x12.protos.Connection\x12<\n\x17is_all_sensor_connected\x12\x0c.protos.void\x1a\x13.protos.Connections\x12\x33\n\x11is_sensor_healthy\x12\x0e.protos.Sensor\x1a\x0e.protos.Health\x12\x36\n\x15is_all_sensor_healthy\x12\x0c.protos.void\x1a\x0f.protos.Healths\x12=\n\x13get_sensor_snapshot\x12\x0e.protos.Sensor\x1a\x16.protos.SensorSnapshot\x12@\n\x17get_all_sensor_snapshot\x12\x0c.protos.void\x1a\x17.protos.SensorSnapshots\x12:\n\x13is_sensor_acquiring\x12\x0e.protos.Sensor\x1a\x13.protos.Acquisition\x12=\n\x17is_all_sensor_acquiring\x12\x0c.protos.void\x1a\x14.protos.Acquisitions\x12?\n\x18start_sensor_acquisition\x12\x0e.protos.Sensor\x1a\x13.protos.Acquisition\x12\x42\n\x1cstart_all_sensor_acquisition\x12\x0c.protos.void\x1a\x14.protos.Acquisitions\x12>\n\x17stop_sensor_acquisition\x12\x0e.protos.Sensor\x1a\x13.protos.Acquisition\x12\x41\n\x1bstop_all_sensor_acquisition\x12\x0c.protos.void\x1a\x14.protos.Acquisitionsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x64\x61q_gateway.proto\x12\x10\x61i.swm.trudy.daq\"\x07\n\x05void_\"\x85\x01\n\x06Sensor\x12\x0c\n\x04name\x18\x01 \x01(\t\x12:\n\x07\x61\x62ility\x18\x02 \x01(\x0e\x32$.ai.swm.trudy.daq.Sensor.HealthCheckH\x00\x88\x01\x01\"%\n\x0bHealthCheck\x12\n\n\x06\x45NABLE\x10\x00\x12\n\n\x06UNABLE\x10\x01\x42\n\n\x08_ability\"\'\n\x07Sensors\x12\x0c\n\x04list\x18\x01 \x03(\t\x12\x0e\n\x06reason\x18\x02 \x01(\t\"\x84\x01\n\nConnection\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x31\n\x05state\x18\x02 \x01(\x0e\x32\".ai.swm.trudy.daq.Connection.State\"5\n\x05State\x12\x0b\n\x07UNKNOWN\x10\x00\x12\r\n\tCONNECTED\x10\x01\x12\x10\n\x0c\x44ISCONNECTED\x10\x02\"9\n\x0b\x43onnections\x12*\n\x04list\x18\x01 \x03(\x0b\x32\x1c.ai.swm.trudy.daq.Connection\"\x8c\x01\n\x06Health\x12\x0c\n\x04name\x18\x01 \x01(\t\x12/\n\x06status\x18\x02 \x01(\x0e\x32\x1f.ai.swm.trudy.daq.Health.Status\x12\x0e\n\x06reason\x18\x03 \x01(\t\"3\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04GOOD\x10\x01\x12\x08\n\x04WARN\x10\x02\x12\x08\n\x04\x42\x41\x41\x44\x10\x03\"1\n\x07Healths\x12&\n\x04list\x18\x01 \x03(\x0b\x32\x18.ai.swm.trudy.daq.Health\"B\n\x0eSensorSnapshot\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x14\n\x0c\x63ontent_type\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"A\n\x0fSensorSnapshots\x12.\n\x04list\x18\x01 \x03(\x0b\x32 .ai.swm.trudy.daq.SensorSnapshot\"\x97\x01\n\x0b\x41\x63quisition\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x32\n\x05state\x18\x02 \x01(\x0e\x32#.ai.swm.trudy.daq.Acquisition.State\x12\x0e\n\x06reason\x18\x03 \x01(\t\"6\n\x05State\x12\x0b\n\x07UNKNOWN\x10\x00\x12\r\n\tACQUIRING\x10\x01\x12\x11\n\rNOT_ACQUIRING\x10\x02\";\n\x0c\x41\x63quisitions\x12+\n\x04list\x18\x01 \x03(\x0b\x32\x1d.ai.swm.trudy.daq.Acquisition2\xe6\x08\n\x07Gateway\x12\x38\n\x04ping\x12\x17.ai.swm.trudy.daq.void_\x1a\x17.ai.swm.trudy.daq.void_\x12\x41\n\x0bget_sensors\x12\x17.ai.swm.trudy.daq.void_\x1a\x19.ai.swm.trudy.daq.Sensors\x12M\n\x13is_sensor_connected\x12\x18.ai.swm.trudy.daq.Sensor\x1a\x1c.ai.swm.trudy.daq.Connection\x12Q\n\x17is_all_sensor_connected\x12\x17.ai.swm.trudy.daq.void_\x1a\x1d.ai.swm.trudy.daq.Connections\x12G\n\x11is_sensor_healthy\x12\x18.ai.swm.trudy.daq.Sensor\x1a\x18.ai.swm.trudy.daq.Health\x12K\n\x15is_all_sensor_healthy\x12\x17.ai.swm.trudy.daq.void_\x1a\x19.ai.swm.trudy.daq.Healths\x12Q\n\x13get_sensor_snapshot\x12\x18.ai.swm.trudy.daq.Sensor\x1a .ai.swm.trudy.daq.SensorSnapshot\x12U\n\x17get_all_sensor_snapshot\x12\x17.ai.swm.trudy.daq.void_\x1a!.ai.swm.trudy.daq.SensorSnapshots\x12N\n\x13is_sensor_acquiring\x12\x18.ai.swm.trudy.daq.Sensor\x1a\x1d.ai.swm.trudy.daq.Acquisition\x12R\n\x17is_all_sensor_acquiring\x12\x17.ai.swm.trudy.daq.void_\x1a\x1e.ai.swm.trudy.daq.Acquisitions\x12S\n\x18start_sensor_acquisition\x12\x18.ai.swm.trudy.daq.Sensor\x1a\x1d.ai.swm.trudy.daq.Acquisition\x12W\n\x1cstart_all_sensor_acquisition\x12\x17.ai.swm.trudy.daq.void_\x1a\x1e.ai.swm.trudy.daq.Acquisitions\x12R\n\x17stop_sensor_acquisition\x12\x18.ai.swm.trudy.daq.Sensor\x1a\x1d.ai.swm.trudy.daq.Acquisition\x12V\n\x1bstop_all_sensor_acquisition\x12\x17.ai.swm.trudy.daq.void_\x1a\x1e.ai.swm.trudy.daq.Acquisitionsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'daq_gateway_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_DEVICE']._serialized_start=48
-  _globals['_DEVICE']._serialized_end=70
-  _globals['_CONNECTIONS']._serialized_start=72
-  _globals['_CONNECTIONS']._serialized_end=119
-  _globals['_HEALTHS']._serialized_start=121
-  _globals['_HEALTHS']._serialized_end=160
-  _globals['_ACQUISITIONS']._serialized_start=162
-  _globals['_ACQUISITIONS']._serialized_end=211
-  _globals['_GATEWAY']._serialized_start=214
-  _globals['_GATEWAY']._serialized_end=1051
+  _globals['_VOID_']._serialized_start=39
+  _globals['_VOID_']._serialized_end=46
+  _globals['_SENSOR']._serialized_start=49
+  _globals['_SENSOR']._serialized_end=182
+  _globals['_SENSOR_HEALTHCHECK']._serialized_start=133
+  _globals['_SENSOR_HEALTHCHECK']._serialized_end=170
+  _globals['_SENSORS']._serialized_start=184
+  _globals['_SENSORS']._serialized_end=223
+  _globals['_CONNECTION']._serialized_start=226
+  _globals['_CONNECTION']._serialized_end=358
+  _globals['_CONNECTION_STATE']._serialized_start=305
+  _globals['_CONNECTION_STATE']._serialized_end=358
+  _globals['_CONNECTIONS']._serialized_start=360
+  _globals['_CONNECTIONS']._serialized_end=417
+  _globals['_HEALTH']._serialized_start=420
+  _globals['_HEALTH']._serialized_end=560
+  _globals['_HEALTH_STATUS']._serialized_start=509
+  _globals['_HEALTH_STATUS']._serialized_end=560
+  _globals['_HEALTHS']._serialized_start=562
+  _globals['_HEALTHS']._serialized_end=611
+  _globals['_SENSORSNAPSHOT']._serialized_start=613
+  _globals['_SENSORSNAPSHOT']._serialized_end=679
+  _globals['_SENSORSNAPSHOTS']._serialized_start=681
+  _globals['_SENSORSNAPSHOTS']._serialized_end=746
+  _globals['_ACQUISITION']._serialized_start=749
+  _globals['_ACQUISITION']._serialized_end=900
+  _globals['_ACQUISITION_STATE']._serialized_start=846
+  _globals['_ACQUISITION_STATE']._serialized_end=900
+  _globals['_ACQUISITIONS']._serialized_start=902
+  _globals['_ACQUISITIONS']._serialized_end=961
+  _globals['_GATEWAY']._serialized_start=964
+  _globals['_GATEWAY']._serialized_end=2090
 # @@protoc_insertion_point(module_scope)
