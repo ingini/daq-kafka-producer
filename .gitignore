@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 로그
+logs/
+*.log
+
+# 빌드 산출물
+*.tar
+*.tar.gz
+
+# 환경 오버라이드 (config.env 는 포함)
+.env.local
+.env.override

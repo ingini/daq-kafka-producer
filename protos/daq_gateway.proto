@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package protos;
+
+import "daq_service.proto";
+
+message Device {
+  string name = 1;
+}
+
+message Connections {
+  repeated Connection list = 1;
+}
+
+message Healths {
+  repeated Health list = 1;
+}
+
+message Acquisitions {
+  repeated Acquisition list = 1;
+}
+
+service Gateway {
+  rpc ping(void) returns (void);
+
+  rpc get_sensors(void) returns (Sensors);
+
+  rpc is_sensor_connected(Sensor) returns (Connection);
+  rpc is_all_sensor_connected(void) returns (Connections);
+
+  rpc is_sensor_healthy(Sensor) returns (Health);
+  rpc is_all_sensor_healthy(void) returns (Healths);
+
+  rpc get_sensor_snapshot(Sensor) returns (SensorSnapshot);
+  rpc get_all_sensor_snapshot(void) returns (SensorSnapshots);
+
+  rpc is_sensor_acquiring(Sensor) returns (Acquisition);
+  rpc is_all_sensor_acquiring(void) returns (Acquisitions);
+
+  rpc start_sensor_acquisition(Sensor) returns (Acquisition);
+  rpc start_all_sensor_acquisition(void) returns (Acquisitions);
+
+  rpc stop_sensor_acquisition(Sensor) returns (Acquisition);
+  rpc stop_all_sensor_acquisition(void) returns (Acquisitions);
+}

@@ -1,0 +1,66 @@
+# ============================================================
+#  daq-kafka-producer  docker-compose
+#  설정: config/config.env 만 수정할 것
+# ============================================================
+
+networks:
+  daq-net:
+    driver: bridge
+
+services:
+
+  daq-service:
+    image: ${REGISTRY:+${REGISTRY}/}daq-service:${IMAGE_TAG:-latest}
+    build:
+      context: ./daq-service
+      dockerfile: Dockerfile
+    container_name: daq-service
+    restart: unless-stopped
+    network_mode: host   # V4L2 + UDP 직접 접근 필요
+    devices:
+      - ${CAM0_DEVICE:-/dev/video0}:${CAM0_DEVICE:-/dev/video0}
+      - ${CAM1_DEVICE:-/dev/video1}:${CAM1_DEVICE:-/dev/video1}
+      - ${CAM2_DEVICE:-/dev/video2}:${CAM2_DEVICE:-/dev/video2}
+    env_file:
+      - ./config/config.env
+    environment:
+      GRPC_PORT: ${SERVICE_GRPC_PORT:-50051}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+        "import socket; s=socket.socket(); s.connect(('127.0.0.1',50051)); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  daq-gateway:
+    image: ${REGISTRY:+${REGISTRY}/}daq-gateway:${IMAGE_TAG:-latest}
+    build:
+      context: ./daq-gateway
+      dockerfile: Dockerfile
+    container_name: daq-gateway
+    restart: unless-stopped
+    network_mode: host   # daq-service(localhost:50051) 접근 + dashboard 수신
+    env_file:
+      - ./config/config.env
+    environment:
+      GRPC_PORT:    ${GATEWAY_GRPC_PORT:-50050}
+      SERVICE_HOST: 127.0.0.1
+      SERVICE_PORT: ${SERVICE_GRPC_PORT:-50051}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+        "import socket; s=socket.socket(); s.connect(('127.0.0.1',50050)); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

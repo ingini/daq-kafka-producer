@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package protos;
+
+message void {}
+
+message Sensor {
+  string name = 1;
+  enum HealthCheck {
+    ENABLE = 0;
+    UNABLE = 1;
+  }
+  optional HealthCheck ability = 2;
+}
+
+message Sensors {
+  repeated string list = 1;
+  string reason = 2;
+}
+
+message Connection {
+  string name = 1;
+  enum State {
+    UNKNOWN = 0;
+    CONNECTED = 1;
+    DISCONNECTED = 2;
+  }
+  State state = 2;
+}
+
+message Health {
+  string name = 1;
+  enum Status {
+    UNKNOWN = 0;
+    GOOD = 1;
+    WARN = 2;
+    BAAD = 3;
+  }
+  Status status = 2;
+  string reason = 3;
+}
+
+message SensorSnapshot {
+  string name = 1;
+  string content_type = 2;
+  bytes data = 3;
+}
+
+message SensorSnapshots {
+  repeated SensorSnapshot list = 1;
+}
+
+message Acquisition {
+  string name = 1;
+  enum State {
+    UNKNOWN = 0;
+    ACQUIRING = 1;
+    NOT_ACQUIRING = 2;
+  }
+  State state = 2;
+  string reason = 3;
+}
+
+service Service {
+  rpc ping(void) returns (void);
+
+  rpc get_sensors(void) returns (Sensors);
+
+  rpc is_connected(Sensor) returns (Connection);
+  rpc is_healthy(Sensor) returns (Health);
+
+  rpc get_snapshot(Sensor) returns (SensorSnapshot);
+  rpc get_snapshots(void) returns (SensorSnapshots);
+
+  rpc is_acquiring(Sensor) returns (Acquisition);
+  rpc start_acquisition(Sensor) returns (Acquisition);
+  rpc stop_acquisition(Sensor) returns (Acquisition);
+}
