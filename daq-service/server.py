@@ -18,7 +18,7 @@ env:
   JPEG_QUALITY      (default 90)
   GNSS_UDP_PORT     (default 1111)
   GNSS_SRC_IP       (default 192.168.20.50)
-  USB_MOUNT_ROOT    (default /media/usb)
+  USB_MOUNT_ROOT    (default /media/swm)
   BROKER_REST_URL   Kafka REST Proxy URL  e.g. http://10.0.0.1:8082
   BROKER_TOPIC_CAM0 (default sensor.cam0.jpeg)
   BROKER_TOPIC_CAM1 (default sensor.cam1.jpeg)
@@ -67,7 +67,7 @@ CAM_HEIGHT     = int(os.environ.get("CAM_HEIGHT",   "360"))
 JPEG_QUALITY   = int(os.environ.get("JPEG_QUALITY", "90"))
 GNSS_UDP_PORT  = int(os.environ.get("GNSS_UDP_PORT", "1111"))
 GNSS_SRC_IP    = os.environ.get("GNSS_SRC_IP", "192.168.20.50")
-USB_MOUNT_ROOT = os.environ.get("USB_MOUNT_ROOT", "/media/usb")
+USB_MOUNT_ROOT = os.environ.get("USB_MOUNT_ROOT", "/media/swm")
 BROKER_REST_URL = os.environ.get("BROKER_REST_URL", "http://localhost:8082")
 BROKER_TOPICS  = {
     "cam0": os.environ.get("BROKER_TOPIC_CAM0", "sensor.cam0.jpeg"),
