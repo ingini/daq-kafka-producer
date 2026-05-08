@@ -69,6 +69,7 @@ GNSS_UDP_PORT  = int(os.environ.get("GNSS_UDP_PORT", "1111"))
 GNSS_SRC_IP    = os.environ.get("GNSS_SRC_IP", "192.168.20.50")
 USB_MOUNT_ROOT = os.environ.get("USB_MOUNT_ROOT", "/media/usb")
 BROKER_REST_URL = os.environ.get("BROKER_REST_URL", "http://localhost:8082")
+VEHICLE_ID      = os.environ.get("VEHICLE_ID", "unknown")
 BROKER_TOPICS  = {
     "cam0": os.environ.get("BROKER_TOPIC_CAM0", "sensor.cam0.jpeg"),
     "cam1": os.environ.get("BROKER_TOPIC_CAM1", "sensor.cam1.jpeg"),
@@ -362,7 +363,16 @@ class CameraWorker:
         ts_ns   = time.time_ns()
         encoded = base64.b64encode(
             struct.pack(">QI", ts_ns, len(jpeg)) + jpeg).decode()
-        payload = {"records": [{"key": str(ts_ns), "value": encoded}]}
+        payload = {
+            "records": [{
+                "key":   f"{VEHICLE_ID}/{ts_ns}",
+                "value": encoded,
+                "headers": [
+                    {"key": "vehicle_id", "value": VEHICLE_ID},
+                    {"key": "sensor",     "value": self.name},
+                ]
+            }]
+        }
         try:
             topic = BROKER_TOPICS[self.name]
             self._http.post(
@@ -441,8 +451,16 @@ class GnssWorker:
                     log.error("GnssWorker error: %s", e)
 
     def _send_kafka(self, data: dict):
-        payload = {"records": [{"key": str(data["gps_ts"]),
-                                "value": json.dumps(data, ensure_ascii=False)}]}
+        payload = {
+            "records": [{
+                "key":   f"{VEHICLE_ID}/{data['gps_ts']}",
+                "value": json.dumps(data, ensure_ascii=False),
+                "headers": [
+                    {"key": "vehicle_id", "value": VEHICLE_ID},
+                    {"key": "sensor",     "value": "imu"},
+                ]
+            }]
+        }
         try:
             self._http.post(
                 f"{BROKER_REST_URL}/topics/{BROKER_TOPICS['gnss']}",
