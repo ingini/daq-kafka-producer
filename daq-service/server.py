@@ -241,8 +241,8 @@ def _gst_capture_jpeg(device: str) -> Optional[bytes]:
     cmd = [
         "gst-launch-1.0", "-q",
         "v4l2src", f"device={device}", "num-buffers=1",
+        "!", "video/x-raw,format=UYVY",
         "!", "videoconvert",
-        "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT}",
         "!", "jpegenc", f"quality={JPEG_QUALITY}",
         "!", "fdsink", "fd=1",
     ]
@@ -307,8 +307,8 @@ class CameraWorker:
         cmd = [
             "gst-launch-1.0", "-q",
             "v4l2src", f"device={self.device}",
+            "!", "video/x-raw,format=UYVY",
             "!", "videoconvert",
-            "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT},framerate=1/1",
             "!", "jpegenc", f"quality={JPEG_QUALITY}",
             "!", "fdsink", "fd=1",
         ]
