@@ -43,8 +43,7 @@ from typing import Optional
 import grpc
 from grpc import aio
 import httpx
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pandas as pd
 
 import daq_service_pb2 as pb
 import daq_service_pb2_grpc as pb_grpc
@@ -152,51 +151,44 @@ def parse_novatel(data: bytes) -> Optional[dict]:
 
 
 # ── Parquet appender ─────────────────────────────────────────
-IMU_SCHEMA = pa.schema([
-    pa.field("ts_ns",     pa.int64()),
-    pa.field("gps_ts",    pa.float64()),
-    pa.field("type",      pa.string()),
-    pa.field("latitude",  pa.float64()),
-    pa.field("longitude", pa.float64()),
-    pa.field("height",    pa.float64()),
-    pa.field("vel_north", pa.float64()),
-    pa.field("vel_east",  pa.float64()),
-    pa.field("vel_up",    pa.float64()),
-    pa.field("roll",      pa.float64()),
-    pa.field("pitch",     pa.float64()),
-    pa.field("azimuth",   pa.float64()),
-])
-
 PARQUET_ROLL_ROWS = int(os.environ.get("PARQUET_ROLL_ROWS", "1000"))
 
 class ParquetAppender:
     """
-    imu.parquet 롤링 writer
+    imu parquet 롤링 writer (pandas + fastparquet)
     - PARQUET_ROLL_ROWS(기본 1000) 행 차면 → 다음 파일로 롤링
-      imu_000.parquet, imu_001.parquet, ...
-    - 수집 종료(close) 시 → 행 수 관계없이 현재 파일 즉시 저장
+      imu_{ts_ns}_{idx:03d}.parquet
+    - 수집 종료(close) 시 → 행 수 관계없이 즉시 저장
     """
 
-    def __init__(self):
-        self._lock     = threading.Lock()
-        self._writer:  Optional[pq.ParquetWriter] = None
-        self._save_dir: Optional[str] = None
-        self._file_idx = 0
-        self._row_count = 0
+    IMU_COLUMNS = [
+        "ts_ns", "gps_ts", "type",
+        "latitude", "longitude", "height",
+        "vel_north", "vel_east", "vel_up",
+        "roll", "pitch", "azimuth",
+    ]
 
-    def _open_next(self, save_dir: str, ts_ns: int):
-        """다음 파일 열기 (롤링 또는 최초) — 파일명에 첫 row 타임스탬프 반영"""
-        if self._writer:
-            try:
-                self._writer.close()
-            except Exception:
-                pass
-        self._save_dir  = save_dir
-        self._row_count = 0
-        # imu_{첫row_ts_ns}_{순번:03d}.parquet
-        path = os.path.join(save_dir, f"imu_{ts_ns}_{self._file_idx:03d}.parquet")
-        self._writer = pq.ParquetWriter(path, IMU_SCHEMA, compression="snappy")
-        log.info("ParquetAppender opened: %s", path)
+    def __init__(self):
+        self._lock      = threading.Lock()
+        self._rows:     list = []
+        self._save_dir: Optional[str] = None
+        self._file_idx  = 0
+        self._first_ts: Optional[int] = None
+
+    def _flush(self):
+        """현재 버퍼를 parquet 파일로 저장"""
+        if not self._rows or not self._save_dir:
+            return
+        ts   = self._first_ts or time.time_ns()
+        path = os.path.join(
+            self._save_dir,
+            f"imu_{ts}_{self._file_idx:03d}.parquet"
+        )
+        df = pd.DataFrame(self._rows, columns=self.IMU_COLUMNS)
+        df.to_parquet(path, engine="fastparquet", compression="snappy", index=False)
+        log.info("ParquetAppender saved: %s (%d rows)", path, len(self._rows))
+        self._rows      = []
+        self._first_ts  = None
 
     def append(self, data: dict):
         with self._lock:
@@ -206,41 +198,53 @@ class ParquetAppender:
 
             ts_ns = data.get("ts_ns", time.time_ns())
 
-            # 최초 or 날짜 바뀐 경우
-            if self._writer is None or self._save_dir != save_dir:
+            # 날짜 바뀐 경우 → flush 후 새 dir
+            if self._save_dir and self._save_dir != save_dir:
+                self._flush()
                 self._file_idx = 0
-                self._open_next(save_dir, ts_ns)
 
-            # 롤링: 1000행 도달 시 다음 파일
-            elif self._row_count >= PARQUET_ROLL_ROWS:
+            self._save_dir = save_dir
+            if self._first_ts is None:
+                self._first_ts = ts_ns
+
+            row = [
+                data.get("ts_ns",     0),
+                data.get("gps_ts",    0.0),
+                data.get("type",      ""),
+                data.get("latitude",  0.0),
+                data.get("longitude", 0.0),
+                data.get("height",    0.0),
+                data.get("vel_north", 0.0),
+                data.get("vel_east",  0.0),
+                data.get("vel_up",    0.0),
+                data.get("roll",      0.0),
+                data.get("pitch",     0.0),
+                data.get("azimuth",   0.0),
+            ]
+            self._rows.append(row)
+
+            # 롤링: PARQUET_ROLL_ROWS 도달 시 flush
+            if len(self._rows) >= PARQUET_ROLL_ROWS:
+                self._flush()
                 self._file_idx += 1
-                self._open_next(save_dir, ts_ns)
-
-            row = {k: [data.get(k, 0 if k != "type" else "")] for k in IMU_SCHEMA.names}
-            self._writer.write_table(pa.table(row, schema=IMU_SCHEMA))
-            self._row_count += 1
 
     def close(self):
         """수집 종료 시 호출 — 행 수 관계없이 즉시 저장"""
         with self._lock:
-            if self._writer:
-                self._writer.close()
-                self._writer    = None
-                self._row_count = 0
-                self._file_idx  = 0
-                log.info("ParquetAppender closed (rows flushed)")
+            self._flush()
+            self._file_idx = 0
+            log.info("ParquetAppender closed")
 
 
 # ── GStreamer snapshot helper ─────────────────────────────────
 def _gst_capture_jpeg(device: str) -> Optional[bytes]:
     cmd = [
-    "gst-launch-1.0", "-q",
-    "v4l2src", f"device={device}", "num-buffers=1",
-    "!", "video/x-raw,format=UYVY",   # ← 추가
-    "!", "videoconvert",
-    "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT}",
-    "!", "jpegenc", f"quality={JPEG_QUALITY}",
-    "!", "fdsink", "fd=1",
+        "gst-launch-1.0", "-q",
+        "v4l2src", f"device={device}", "num-buffers=1",
+        "!", "videoconvert",
+        "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT}",
+        "!", "jpegenc", f"quality={JPEG_QUALITY}",
+        "!", "fdsink", "fd=1",
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=5)
@@ -303,7 +307,6 @@ class CameraWorker:
         cmd = [
             "gst-launch-1.0", "-q",
             "v4l2src", f"device={self.device}",
-            "!", "video/x-raw,format=UYVY",   # ← 추가
             "!", "videoconvert",
             "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT},framerate=1/1",
             "!", "jpegenc", f"quality={JPEG_QUALITY}",

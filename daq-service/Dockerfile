@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.9 \
     python3-pip \
     python3.9-dev \
+    # 빌드 도구
+    cmake \
+    build-essential \
     # GStreamer 1.16 (Ubuntu 20.04 기본 버전 - 호스트와 동일)
     gstreamer1.0-tools \
     gstreamer1.0-plugins-base \
