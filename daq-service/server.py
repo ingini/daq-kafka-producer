@@ -68,6 +68,7 @@ GNSS_UDP_PORT  = int(os.environ.get("GNSS_UDP_PORT", "1111"))
 GNSS_SRC_IP    = os.environ.get("GNSS_SRC_IP", "192.168.20.50")
 USB_MOUNT_ROOT = os.environ.get("USB_MOUNT_ROOT", "/media/usb")
 BROKER_REST_URL = os.environ.get("BROKER_REST_URL", "http://localhost:8082")
+BROKER_CLUSTER_ID = os.environ.get("BROKER_CLUSTER_ID", "")
 VEHICLE_ID      = os.environ.get("VEHICLE_ID", "unknown")
 BROKER_TOPICS  = {
     "cam0": os.environ.get("BROKER_TOPIC_CAM0", "sensor.cam0.jpeg"),
@@ -369,25 +370,29 @@ class CameraWorker:
         encoded = base64.b64encode(
             struct.pack(">QI", ts_ns, len(jpeg)) + jpeg).decode()
         payload = {
-            "records": [{
-                "key":   f"{VEHICLE_ID}/{ts_ns}",
-                "value": encoded,
-                "headers": [
-                    {"key": "vehicle_id", "value": VEHICLE_ID},
-                    {"key": "sensor",     "value": self.name},
-                ]
-            }]
+            "key": {
+                "type": "BINARY",
+                "data": base64.b64encode(VEHICLE_ID.encode()).decode()
+            },
+            "value": {
+                "type": "BINARY",
+                "data": encoded
+            },
+            "headers": [
+                {"name": "vehicle_id", "value": base64.b64encode(VEHICLE_ID.encode()).decode()},
+                {"name": "sensor",     "value": base64.b64encode(self.name.encode()).decode()},
+                {"name": "ts_ns",      "value": base64.b64encode(str(ts_ns).encode()).decode()},
+            ]
         }
         try:
             topic = BROKER_TOPICS[self.name]
             self._http.post(
-                f"{BROKER_REST_URL}/topics/{topic}",
+                f"{BROKER_REST_URL}/v3/clusters/{BROKER_CLUSTER_ID}/topics/{topic}/records",
                 json=payload,
-                headers={"Content-Type": "application/vnd.kafka.binary.v2+json"},
+                headers={"Content-Type": "application/json"},
             )
         except Exception as e:
             log.warning("CameraWorker %s kafka send failed: %s", self.name, e)
-
 
 # ── GnssWorker ────────────────────────────────────────────────
 class GnssWorker:
