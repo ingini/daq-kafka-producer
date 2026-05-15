@@ -370,7 +370,8 @@ class FakeReceiver(threading.Thread):
                 self._sock.close()
             except Exception:
                 pass
-        self.join(timeout=3)
+        if self.is_alive():
+            self.join(timeout=3)
 
     def run(self):
         buf_size = 1024 * 1024

@@ -50,7 +50,7 @@ class KafkaRestClient:
 
         self._client = httpx.Client(
             verify=TLS_VERIFY,
-            timeout=5.0,
+            timeout=30.0,
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
         )
         log.info(
