@@ -22,6 +22,8 @@ services:
       - ./config/config.env
     environment:
       GRPC_PORT: ${SERVICE_GRPC_PORT:-50051}
+      GRPC_VERBOSITY: ERROR
+      GRPC_TRACE: ""
     logging:
       driver: "json-file"
       options:

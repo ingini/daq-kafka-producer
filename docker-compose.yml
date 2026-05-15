@@ -12,11 +12,13 @@ services:
   daq-service:
     image: ${REGISTRY:+${REGISTRY}/}daq-service:${IMAGE_TAG:-latest}
     build:
-      context: ./daq-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: daq-service/Dockerfile
     container_name: daq-service
     restart: unless-stopped
     network_mode: host   # V4L2 + UDP 직접 접근 필요
+    volumes:
+      - /media/swm:/media/swm:rw
     devices:
       - ${CAM0_DEVICE:-/dev/video0}:${CAM0_DEVICE:-/dev/video0}
       - ${CAM1_DEVICE:-/dev/video1}:${CAM1_DEVICE:-/dev/video1}

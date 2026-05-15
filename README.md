@@ -1,7 +1,7 @@
 # daq-kafka-producer
 
 DAQ Edge Server 빌드 & 배포 패키지  
-카메라 3대 + GNSS 수집 → USB(SSD) 로컬 저장 또는 Remote Kafka Broker 전송
+카메라 3대 + GNSS(BynavX1) 수집 → USB(SSD) 로컬 저장 또는 Remote Kafka Broker 전송
 
 ---
 
@@ -13,152 +13,184 @@ DAQ Edge Server 빌드 & 배포 패키지
 | `make` | 빌드 자동화 |
 
 > Python, pip 등 별도 설치 불필요.  
-> 모든 의존성은 `docker build` 시 이미지 안에 자동 설치됨.
+> 모든 의존성은 `docker build` 시 이미지 안에 자동 설치됨.  
+> `fused_frame_pb2.py` proto 컴파일도 빌드 시 자동 수행됨.
 
 ---
 
-## 소스 구조 (개발 PC)
+## 소스 구조
 
 ```
 daq-kafka-producer/
-├── Makefile                          ← 빌드 진입점
-├── version                           ← 버전 번호
+├── Makefile
+├── version
+├── docker-compose.yml                ← build context: 상위(.) 기준
 ├── config/
 │   └── config.env                    ← 설정 파일 (여기만 수정)
-├── compose/
-│   └── docker-compose-ap500l.yml
-├── protos/                           ← gRPC proto 정의
+├── protos/
 │   ├── daq_service.proto
 │   ├── daq_gateway.proto
-│   └── fused_frame.proto             ← ★ 추가: FusedFrame 메시지 정의
-├── daq-service/                      ← 센서 수집 서버 (소스 + Dockerfile)
+│   └── fused_frame.proto
+├── daq-service/
+│   ├── Dockerfile
 │   ├── server.py
-│   ├── fused_producer.py             ← ★ 추가: timesync 묶음 전송
-│   └── ...
-└── daq-gateway/                      ← gRPC relay 서버 (소스 + Dockerfile)
+│   ├── fused_producer.py
+│   ├── kafka_client.py
+│   └── requirements.txt
+└── daq-gateway/
+    ├── Dockerfile
+    ├── server.py
+    └── requirements.txt
 ```
 
 ---
 
-## 빌드 & 배포 플로우
-
-### 1. 설정 수정
+## GNSS 장비 연결 구조 (BynavX1)
 
 ```
-config/config.env
+BynavX1 (192.168.20.50)
+  ├── TCP :1111    ← FakeReceiver 연결 유지 (데이터 버림)
+  │                  TCP 연결이 있어야 WebSocket 데이터 전송됨
+  └── WebSocket    ← BynavX1Proxy NMEA ASCII 수신
+       #BESTPOSA / #BESTGNSSPOSA → lat/lon/postype/solstat 파싱
 ```
 
-| 항목 | 설명 |
-|------|------|
-| `VEHICLE_ID` | 차량 식별자 |
-| `GNSS_SRC_IP` | GNSS 장비 IP |
-| `USB_MOUNT_ROOT` | USB(SSD) 마운트 경로 (기본 `/media/usb`) |
-| `BROKER_REST_URL` | Kafka REST Proxy URL (USB 없을 때 fallback) |
-| `IMAGE_TAG` | 이미지 태그 (version 파일과 맞출 것) |
+---
 
-### 2. 릴리즈 패키지 빌드
+## USB 저장 감지 방식
+
+`/proc/mounts` 기준으로 `/dev/sd*` 계열 블록 디바이스가 `USB_MOUNT_ROOT` 하위에 마운트된 경우만 USB로 인식.  
+Docker bind mount 오탐 방지.
+
+| 상황 | 감지 결과 |
+|------|-----------|
+| `/dev/sda1 on /media/swm/SSD` | USB 있음 ✓ |
+| `/dev/nvme0n1p1 on /media/swm` | USB 없음 (내장 디스크 제외) |
+| USB 미연결 | USB 없음 |
+
+---
+
+## 설정 (`config/config.env`)
+
+| 항목 | 기본값 | 설명 |
+|------|--------|------|
+| `VEHICLE_ID` | `AP500L-001` | 차량 식별자 |
+| `GNSS_SRC_IP` | `192.168.20.50` | BynavX1 IP |
+| `GNSS_TCP_PORT` | `1111` | FakeReceiver TCP 포트 |
+| `GNSS_ROLL_MINUTES` | `1` | GNSS JSONL 파일 롤링 주기 (분) |
+| `USB_MOUNT_ROOT` | `/media/swm` | USB 마운트 루트 경로 |
+| `CAM_PUBLISH_FPS` | `1` | 카메라 publish FPS |
+| `BROKER_REST_URL` | - | Kafka REST Proxy URL (USB 없을 때 fallback) |
+| `IMAGE_TAG` | `1.0.0` | 이미지 태그 |
+| `CACHE_TTL` | `5.0` | gateway 캐시 만료 시간(초) |
+
+---
+
+## 빌드 & 배포
+
+### 개발 PC에서 빌드
 
 ```bash
 make ap500l
+# → release/daq-ap500l-{version}/ 생성
 ```
 
-결과물: `release/daq-ap500l-{version}/`
-
-### 3. 엣지 서버에 배포
+### 엣지 서버 배포
 
 ```bash
-scp -r release/daq-ap500l-1.0.0 user@192.168.20.100:~/DAQ/daq-system
+scp -r release/daq-ap500l-1.0.0 swm@192.168.20.100:~/DAQ/daq-system
 ```
 
-### 4. 엣지 서버에서 실행
+### 엣지 서버 실행
 
 ```bash
 cd ~/DAQ/daq-system
 
-# 이미지 로드 (최초 1회)
+# 이미지 로드 (최초 1회 또는 업데이트 시)
 docker load -i daq-service.tar
 docker load -i daq-gateway.tar
 
-# 서비스 시작
-docker compose --env-file config/config.env up -d
+# .env 심볼릭 링크 (최초 1회)
+ln -s config/config.env .env
 
-# 상태 확인
-docker compose --env-file config/config.env ps
+# 서비스 시작/중지
+docker compose up -d
+docker compose down
 
 # 로그
 docker logs -f daq-service
 docker logs -f daq-gateway
-
-# 서비스 중지
-docker compose --env-file config/config.env down
 ```
 
 ---
 
-## release 폴더 구조
+## 저장 경로
+
+### USB 연결 시
 
 ```
-release/daq-ap500l-1.0.0/
-├── docker-compose.yml
-├── version
-├── daq-service.tar        ← docker image (호스트 빌드 불필요)
-├── daq-gateway.tar        ← docker image (호스트 빌드 불필요)
-└── config/
-    └── config.env         ← 엣지에서 추가 수정 가능
+{USB_MOUNT_ROOT}/{USB_NAME}/{yyyymmdd}/
+├── cam0/{ts_ns}.jpg
+├── cam1/{ts_ns}.jpg
+├── cam2/{ts_ns}.jpg
+├── imu/gnss_{ts_ns}.jsonl     ← GNSS_ROLL_MINUTES 분마다 새 파일
+└── fused/{ts_ns}.bin          ← FusedFrame protobuf
 ```
+
+예시:
+```
+/media/swm/SSD/20260515/
+├── cam0/1778818793518202997.jpg
+├── imu/gnss_1778818793000000000.jsonl
+└── fused/1778818793518202997.bin
+```
+
+### JSONL 읽기
+
+```python
+import pandas as pd
+df = pd.read_json("/media/swm/SSD/20260515/imu/gnss_xxx.jsonl", lines=True)
+```
+
+### USB 미연결 시
+
+Kafka REST Proxy(`BROKER_REST_URL`)로 전송
 
 ---
 
-## 저장 모드
-
-| 조건 | 동작 |
-|------|------|
-| USB(SSD) 연결됨 | `{USB_MOUNT_ROOT}/{yyyymmdd}/cam{n}/{ts_ns}.jpg` 로컬 저장<br>`{USB_MOUNT_ROOT}/{yyyymmdd}/imu/imu_{ts_ns}_{idx:03d}.parquet` |
-| USB(SSD) 없음 | Kafka REST Proxy(`BROKER_REST_URL`)로 전송 |
-
-> **USB 연결 여부와 무관하게** `sensor.fused` 토픽은 항상 전송됩니다.  
-> dashboard의 Storage 위젯이 USB 연결 상태를 실시간으로 표시함.
-
----
-
-## Kafka 토픽 구성
+## Kafka 토픽
 
 | 토픽 | 포맷 | 내용 |
 |------|------|------|
-| `sensor.cam0.jpeg` | binary (header + JPEG) | cam0 개별 프레임 |
-| `sensor.cam1.jpeg` | binary (header + JPEG) | cam1 개별 프레임 |
-| `sensor.cam2.jpeg` | binary (header + JPEG) | cam2 개별 프레임 |
-| `sensor.gnss` | JSON | GNSS/INS 파싱 결과 |
-| `sensor.fused` ★ | Protobuf (FusedFrame) | cam0~2 + GNSS timesync 묶음 |
+| `sensor.cam0.jpeg` | binary (8B ts + 4B len + JPEG) | cam0 프레임 |
+| `sensor.cam1.jpeg` | binary | cam1 프레임 |
+| `sensor.cam2.jpeg` | binary | cam2 프레임 |
+| `sensor.gnss` | JSON | lat/lon/postype/solstat |
+| `sensor.fused` | Protobuf (FusedFrame) | cam0~2 + GNSS timesync 묶음 |
 
-### FusedFrame 토픽 (`sensor.fused`)
+### GNSS JSON 예시
 
-- **Key**: `{vehicle_id}/{sync_ts_ns}`
-- **Value**: `FusedFrame` protobuf binary (`fused_frame.proto` 참조)
-- **Headers**: `vehicle_id`, `cam_count`, `has_gnss`, `sync_skew_ms`
-- **Timesync 방식**: 슬라이딩 윈도우 — `FUSED_WINDOW_MS` 이내의 최신 프레임을 `FUSED_INTERVAL_S` 주기로 묶어 전송
-- **USB 모드에서도 전송**: 개별 cam/gnss 토픽과 달리 USB 마운트 상태와 무관하게 항상 전송
-
-### FusedFrame 관련 환경변수
-
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `BROKER_TOPIC_FUSED` | `sensor.fused` | 토픽명 |
-| `FUSED_WINDOW_MS` | `200` | timesync 허용 오차 (ms). 이 값보다 오래된 프레임은 제외 |
-| `FUSED_INTERVAL_S` | `1.0` | publish 주기 (초) |
-| `FUSED_MIN_CAMS` | `1` | 최소 카메라 수. 미달 시 해당 주기 skip |
-| `FUSED_REQUIRE_GNSS` | `0` | `1`로 설정 시 GNSS 없으면 skip |
+```json
+{
+  "type": "gnss_pos",
+  "ts_ns": 1778818793518202997,
+  "latitude": 37.123456,
+  "longitude": 127.123456,
+  "height": 45.2,
+  "solstat": "SOL_COMPUTED",
+  "postype": "NARROW_INT",
+  "diffage": 0.8,
+  "solnsvs": 12
+}
+```
 
 ---
 
-## 버전 관리
+## gateway 상태 관리
 
-```bash
-echo "1.0.1" > version
-# config/config.env 의 IMAGE_TAG 도 동일하게 수정
-make ap500l
-# → release/daq-ap500l-1.0.1/ 생성
-```
+- 백그라운드 1초 폴링 → 캐시 → dashboard 요청 시 즉시 반환
+- `CACHE_TTL`(기본 5초) 초과 시 강제 DISCONNECTED/BAAD
+- USB 뽑으면 ~6초 이내 앱에 반영
 
 ---
 

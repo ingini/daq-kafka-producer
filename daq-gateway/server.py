@@ -6,6 +6,8 @@ daq-gateway  –  gRPC Gateway server
   - daq-service 채널 싱글톤 유지
   - DeviceReqBuffer: connection/health/snapshot 백그라운드 캐싱
     → dashboard 요청 오면 캐시 즉시 반환 (Wi-Fi 지연 영향 없음)
+  - 캐시 TTL(CACHE_TTL초) 초과 시 DISCONNECTED/BAAD 강제 반환
+    → USB 뽑거나 센서 끊기면 앱에 즉시 반영
   - acquisition: 실시간 직접 호출
 
 env:
@@ -15,6 +17,8 @@ env:
   CALL_TIMEOUT       daq-service RPC timeout 초 (default 3.0)
   HEALTH_INTERVAL    백그라운드 체크 주기 초  (default 1.0)
   SNAPSHOT_INTERVAL  스냅샷 캐싱 주기 초     (default 1.0)
+  CACHE_TTL          캐시 만료 시간 초       (default 5.0)
+                     이 시간 동안 갱신 없으면 DISCONNECTED/BAAD 반환
 """
 
 import os
@@ -50,24 +54,34 @@ class DeviceReqBuffer(threading.Thread):
     """
     백그라운드 스레드로 connection/health/snapshot 주기적 캐싱.
     dashboard 요청 → 캐시값 즉시 반환 (Wi-Fi 지연 영향 없음).
+
+    캐시 TTL:
+      - 마지막 갱신으로부터 CACHE_TTL초 초과 시 DISCONNECTED/BAAD 강제 반환
+      - 초기(한 번도 갱신 안 된 상태)도 DISCONNECTED/BAAD 반환
+      → USB 뽑거나 daq-service 죽으면 앱에 즉시 반영
     """
 
     def __init__(self, stub: svc_grpc.ServiceStub):
         super().__init__(daemon=True)
-        self._stub     = stub
-        self._stop_ev  = threading.Event()
+        self._stub    = stub
+        self._stop_ev = threading.Event()
+
+        # 캐시 만료 시간: 이 시간 이상 갱신 없으면 DISCONNECTED/BAAD 반환
+        self._cache_ttl = float(os.environ.get("CACHE_TTL", "5.0"))
 
         self._sensors_lock = threading.Lock()
         self._sensors: list = []
 
         self._conn_lock = threading.Lock()
         self._conn: Dict[str, int] = {}
+        self._conn_ts: Dict[str, float] = {}    # 마지막 갱신 시각
 
         self._health_lock = threading.Lock()
         self._health: Dict[str, Tuple] = {}
+        self._health_ts: Dict[str, float] = {}  # 마지막 갱신 시각
 
         self._snap_lock = threading.Lock()
-        self._snap: Dict[str, Tuple] = {}  # name → (content_type, data)
+        self._snap: Dict[str, Tuple] = {}       # name → (content_type, data)
 
         self._last_snap_time = 0.0
 
@@ -100,31 +114,37 @@ class DeviceReqBuffer(threading.Thread):
     def _refresh_connection(self):
         with self._sensors_lock:
             sensors = list(self._sensors)
+        now = time.time()
         for name in sensors:
             try:
                 resp = self._stub.is_connected(
                     svc_pb.Sensor(name=name), timeout=CALL_TIMEOUT)
                 with self._conn_lock:
-                    self._conn[name] = resp.state
+                    self._conn[name]    = resp.state
+                    self._conn_ts[name] = now
             except grpc.RpcError:
+                # RPC 실패도 DISCONNECTED로 기록 + ts 갱신
                 with self._conn_lock:
-                    self._conn[name] = svc_pb.Connection.State.DISCONNECTED
+                    self._conn[name]    = svc_pb.Connection.State.DISCONNECTED
+                    self._conn_ts[name] = now
 
     def _refresh_health(self):
         with self._sensors_lock:
             sensors = list(self._sensors)
+        now = time.time()
         for name in sensors:
             try:
                 resp = self._stub.is_healthy(
                     svc_pb.Sensor(name=name), timeout=CALL_TIMEOUT)
                 with self._health_lock:
-                    self._health[name] = (resp.status, resp.reason)
+                    self._health[name]    = (resp.status, resp.reason)
+                    self._health_ts[name] = now
             except grpc.RpcError as e:
                 with self._health_lock:
-                    self._health[name] = (svc_pb.Health.Status.BAAD, str(e))
+                    self._health[name]    = (svc_pb.Health.Status.BAAD, str(e))
+                    self._health_ts[name] = now
 
     def _refresh_snapshots(self):
-        """모든 센서 snapshot 백그라운드 캐싱"""
         try:
             resp = self._stub.get_snapshots(svc_pb.void(), timeout=CALL_TIMEOUT)
             with self._snap_lock:
@@ -140,12 +160,21 @@ class DeviceReqBuffer(threading.Thread):
 
     def get_connection(self, name: str) -> int:
         with self._conn_lock:
-            return self._conn.get(name, svc_pb.Connection.State.UNKNOWN)
+            ts  = self._conn_ts.get(name, 0.0)
+            val = self._conn.get(name, svc_pb.Connection.State.DISCONNECTED)
+        # TTL 만료(초기 포함) → DISCONNECTED
+        if time.time() - ts > self._cache_ttl:
+            return svc_pb.Connection.State.DISCONNECTED
+        return val
 
     def get_health(self, name: str) -> Tuple:
         with self._health_lock:
-            return self._health.get(name,
-                (svc_pb.Health.Status.UNKNOWN, "not yet checked"))
+            ts  = self._health_ts.get(name, 0.0)
+            val = self._health.get(name, (svc_pb.Health.Status.BAAD, "not yet checked"))
+        # TTL 만료(초기 포함) → BAAD
+        if time.time() - ts > self._cache_ttl:
+            return (svc_pb.Health.Status.BAAD, "stale: no recent data")
+        return val
 
     def get_snapshot(self, name: str) -> Tuple:
         with self._snap_lock:
@@ -175,7 +204,7 @@ class GatewayServicer(gw_grpc.GatewayServicer):
     def get_sensors(self, request, context):
         return gw_pb.Sensors(list=self._buf.get_sensors())
 
-    # ── Connection (캐시) ─────────────────────────────────────
+    # ── Connection (캐시, TTL 적용) ───────────────────────────
     def is_sensor_connected(self, request, context):
         state = self._buf.get_connection(request.name)
         return gw_pb.Connection(name=request.name, state=state)
@@ -187,7 +216,7 @@ class GatewayServicer(gw_grpc.GatewayServicer):
         ]
         return gw_pb.Connections(list=conns)
 
-    # ── Health (캐시) ─────────────────────────────────────────
+    # ── Health (캐시, TTL 적용) ───────────────────────────────
     def is_sensor_healthy(self, request, context):
         status, reason = self._buf.get_health(request.name)
         return gw_pb.Health(name=request.name, status=status, reason=reason)
@@ -219,7 +248,7 @@ class GatewayServicer(gw_grpc.GatewayServicer):
                 ))
         return gw_pb.SensorSnapshots(list=snaps)
 
-    # ── Acquisition (실시간 직접 호출) ───────────────────────
+    # ── Acquisition (실시간 직접 호출) ────────────────────────
     def is_sensor_acquiring(self, request, context):
         try:
             resp = self._stub.is_acquiring(
@@ -308,8 +337,8 @@ def serve():
 
     buf = DeviceReqBuffer(stub)
     buf.start()
-    log.info("DeviceReqBuffer started (health=%.1fs snapshot=%.1fs)",
-             HEALTH_INTERVAL, SNAPSHOT_INTERVAL)
+    log.info("DeviceReqBuffer started (health=%.1fs snapshot=%.1fs cache_ttl=%.1fs)",
+             HEALTH_INTERVAL, SNAPSHOT_INTERVAL, buf._cache_ttl)
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     gw_grpc.add_GatewayServicer_to_server(GatewayServicer(stub, buf), server)
