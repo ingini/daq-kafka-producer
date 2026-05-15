@@ -307,12 +307,8 @@ class CameraWorker:
                 _fused.put_cam(self.cam_id, jpeg, ts_ns)
                 if _usb_available():
                     self._save_local(jpeg, ts_ns)
-                else:
-                    # Kafka 전송은 별도 스레드로 비동기 처리 (블로킹 방지)
-                    try:
-                        self._kafka_q.put_nowait((jpeg, ts_ns))
-                    except queue.Full:
-                        log.debug("%s kafka queue full, drop frame", self.name)
+                # USB 없을 때 cam 개별 Kafka 전송 안 함
+                # → fused 토픽(sensor.fused)에 cam이 포함되어 전송됨
         except Exception as e:
             log.error("CameraWorker %s error: %s", self.name, e)
         finally:

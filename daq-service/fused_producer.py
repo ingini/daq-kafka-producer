@@ -24,13 +24,14 @@ timesync 윈도우:
 """
 
 import os
+import queue
 import time
 import logging
 import threading
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
-from kafka_client import get_kafka
+from kafka_client import new_kafka
 
 BROKER_TOPIC_FUSED = os.environ.get("BROKER_TOPIC_FUSED", "sensor.fused")
 VEHICLE_ID         = os.environ.get("VEHICLE_ID",         "unknown")
@@ -96,7 +97,10 @@ class FusedFrameProducer:
 
         self._seq     = 0
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread:       Optional[threading.Thread] = None
+        self._kafka_thread: Optional[threading.Thread] = None
+        self._kafka   = new_kafka()   # fused 전용 독립 client
+        self._kafka_q = queue.Queue(maxsize=3)  # 최대 3프레임 버퍼
 
     # ── put API ───────────────────────────────────────────────
     def put_cam(self, cam_id: int, jpeg: bytes, capture_ns: int):
@@ -114,8 +118,10 @@ class FusedFrameProducer:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(target=self._fuse_loop, daemon=True)
+        self._thread        = threading.Thread(target=self._fuse_loop, daemon=True)
+        self._kafka_thread  = threading.Thread(target=self._kafka_loop, daemon=True)
         self._thread.start()
+        self._kafka_thread.start()
         log.info(
             "FusedFrameProducer started  topic=%s  window=%dms  "
             "interval=%.1fs  min_cams=%d  require_gnss=%s",
@@ -126,6 +132,8 @@ class FusedFrameProducer:
         self._running = False
         if self._thread:
             self._thread.join(timeout=3)
+        if self._kafka_thread:
+            self._kafka_thread.join(timeout=5)
         log.info("FusedFrameProducer stopped")
 
     # ── 핵심 루프 ─────────────────────────────────────────────
@@ -211,7 +219,10 @@ class FusedFrameProducer:
         if mount:
             self._save_local(raw, sync_ns, mount)
         else:
-            self._send_kafka(raw, sync_ns, len(cam_frames), gnss_frame is not None, max_skew)
+            try:
+                self._kafka_q.put_nowait((raw, sync_ns, len(cam_frames), gnss_frame is not None, max_skew))
+            except queue.Full:
+                log.debug("fused kafka queue full, drop frame")
 
         log.debug(
             "fused seq=%d  cams=%d  gnss=%s  skew=%s  size=%d B  dst=%s",
@@ -231,9 +242,20 @@ class FusedFrameProducer:
         except Exception as e:
             log.warning("fused local save failed: %s", e)
 
+    def _kafka_loop(self):
+        """Kafka 전송 전용 스레드 — fused 전송이 fuse loop에 영향 없도록"""
+        while self._running or not self._kafka_q.empty():
+            try:
+                raw, sync_ns, cam_count, has_gnss, max_skew = self._kafka_q.get(timeout=1.0)
+                self._send_kafka(raw, sync_ns, cam_count, has_gnss, max_skew)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                log.warning("fused kafka_loop error: %s", e)
+
     def _send_kafka(self, raw: bytes, sync_ns: int,
                     cam_count: int, has_gnss: bool, max_skew: int):
-        get_kafka().produce(
+        self._kafka.produce(
             topic=BROKER_TOPIC_FUSED,
             value=raw,
             key=f"{VEHICLE_ID}/{sync_ns}",
