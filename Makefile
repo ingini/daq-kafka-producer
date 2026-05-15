@@ -52,7 +52,9 @@ _release-dir:
 
 _build-service:
 	@echo "[1/2] Building daq-service:$(IMAGE_TAG)..."
-	@docker build -t daq-service:$(IMAGE_TAG) ./daq-service
+	@cp -r protos daq-service/protos
+	@docker build -t daq-service:$(IMAGE_TAG) ./daq-service || (rm -rf daq-service/protos; exit 1)
+	@rm -rf daq-service/protos
 	@docker save daq-service:$(IMAGE_TAG) -o $(RELEASE_DIR)/daq-service.tar
 	@echo "      → $(RELEASE_DIR)/daq-service.tar"
 

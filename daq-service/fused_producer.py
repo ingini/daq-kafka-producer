@@ -54,17 +54,22 @@ def _load_pb():
 
 
 def _find_usb_mount() -> Optional[str]:
-    """server.py 와 동일한 USB 탐색 로직"""
-    root = USB_MOUNT_ROOT
-    if os.path.ismount(root):
-        return root
+    """/proc/mounts 기준으로 /dev/sd* 계열만 USB로 인식 (server.py 동일 로직)"""
+    root = USB_MOUNT_ROOT.rstrip("/")
     try:
-        for name in sorted(os.listdir(root)):
-            candidate = os.path.join(root, name)
-            if os.path.ismount(candidate):
-                return candidate
-    except FileNotFoundError:
-        pass
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                device, mountpoint = parts[0], parts[1]
+                dev_name = device.split("/")[-1]
+                if not dev_name.startswith("sd"):
+                    continue
+                if mountpoint == root or mountpoint.startswith(root + "/"):
+                    return mountpoint
+    except Exception as e:
+        log.warning("_find_usb_mount error: %s", e)
     return None
 
 
