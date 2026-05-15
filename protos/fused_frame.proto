@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package protos;
+
+// ──────────────────────────────────────────────────────────────
+//  FusedFrame  –  cam0/1/2 JPEG + GNSS 를 timesync 기준으로 묶음
+//
+//  Kafka topic : sensor.fused
+//  Key         : {vehicle_id}/{sync_ts_ns}
+//  Value       : FusedFrame.SerializeToString()   (binary protobuf)
+//  Headers     : vehicle_id, cam_count, has_gnss, sync_skew_ms
+// ──────────────────────────────────────────────────────────────
+
+message CameraFrame {
+  string  sensor_name  = 1;   // "cam0" | "cam1" | "cam2"
+  uint64  capture_ns   = 2;   // time.time_ns() at capture
+  bytes   jpeg         = 3;   // raw JPEG bytes
+  int32   width        = 4;
+  int32   height       = 5;
+}
+
+message GnssFrame {
+  uint64  capture_ns   = 1;   // time.time_ns() at parse
+  double  gps_ts       = 2;   // GPS week-seconds
+  string  fix_type     = 3;   // "ins_pvax" | "gnss_pos"
+  double  latitude     = 4;
+  double  longitude    = 5;
+  double  height       = 6;
+  double  vel_north    = 7;
+  double  vel_east     = 8;
+  double  vel_up       = 9;
+  double  roll         = 10;
+  double  pitch        = 11;
+  double  azimuth      = 12;
+}
+
+message FusedFrame {
+  string     vehicle_id   = 1;
+  uint64     sync_ts_ns   = 2;   // 묶음 기준 타임스탬프 (ns)
+  uint32     seq          = 3;   // 단조 증가 시퀀스
+
+  // cam 0~2 중 확보된 것만 포함 (최대 3개)
+  repeated CameraFrame cameras = 4;
+
+  // GNSS – 없으면 생략
+  GnssFrame  gnss         = 5;
+
+  // 진단용: sync_ts_ns 대비 각 센서의 실제 timestamp 오차 (ms)
+  // key = "cam0" | "cam1" | "cam2" | "gnss"
+  map<string, int32> skew_ms = 6;
+}
