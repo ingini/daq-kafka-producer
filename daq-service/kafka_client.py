@@ -100,9 +100,14 @@ _kafka: Optional[KafkaRestClient] = None
 _kafka_lock = threading.Lock()
 
 def get_kafka() -> KafkaRestClient:
+    """공용 싱글톤 — gnss/fused 등 소형 메시지용"""
     global _kafka
     if _kafka is None:
         with _kafka_lock:
             if _kafka is None:
                 _kafka = KafkaRestClient()
     return _kafka
+
+def new_kafka() -> KafkaRestClient:
+    """독립 인스턴스 — cam 등 대형 메시지용 (병렬 전송)"""
+    return KafkaRestClient()

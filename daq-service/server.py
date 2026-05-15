@@ -33,6 +33,7 @@ env:
 """
 
 import asyncio
+import queue
 import json
 import logging
 import os
@@ -51,7 +52,7 @@ from grpc import aio
 import daq_service_pb2 as pb
 import daq_service_pb2_grpc as pb_grpc
 
-from kafka_client import get_kafka
+from kafka_client import get_kafka, new_kafka
 from fused_producer import FusedFrameProducer
 
 import websocket
@@ -238,9 +239,12 @@ class CameraWorker:
         self.name     = f"cam{cam_id}"
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._kafka_thread: Optional[threading.Thread] = None
         self._proc:   Optional[subprocess.Popen] = None
         self._last_jpeg: Optional[bytes] = None
         self._lock    = threading.Lock()
+        self._kafka_q: queue.Queue = queue.Queue(maxsize=5)  # 최대 5프레임 버퍼
+        self._kafka_client = None  # 카메라 전용 독립 client (start 시 생성)
 
     @property
     def is_acquiring(self) -> bool:
@@ -260,8 +264,11 @@ class CameraWorker:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(target=self._run, daemon=True)
+        self._kafka_client = new_kafka()   # 카메라 전용 독립 client
+        self._thread       = threading.Thread(target=self._run, daemon=True)
+        self._kafka_thread = threading.Thread(target=self._kafka_loop, daemon=True)
         self._thread.start()
+        self._kafka_thread.start()
         log.info("CameraWorker %s started  device=%s  fps=%d",
                  self.name, self.device, CAM_PUBLISH_FPS)
 
@@ -301,7 +308,11 @@ class CameraWorker:
                 if _usb_available():
                     self._save_local(jpeg, ts_ns)
                 else:
-                    self._send_kafka(jpeg, ts_ns)
+                    # Kafka 전송은 별도 스레드로 비동기 처리 (블로킹 방지)
+                    try:
+                        self._kafka_q.put_nowait((jpeg, ts_ns))
+                    except queue.Full:
+                        log.debug("%s kafka queue full, drop frame", self.name)
         except Exception as e:
             log.error("CameraWorker %s error: %s", self.name, e)
         finally:
@@ -339,9 +350,20 @@ class CameraWorker:
         except Exception as e:
             log.warning("%s local save failed: %s", self.name, e)
 
+    def _kafka_loop(self):
+        """Kafka 전송 전용 스레드 — blocking 전송이 capture loop에 영향 없도록"""
+        while self._running or not self._kafka_q.empty():
+            try:
+                jpeg, ts_ns = self._kafka_q.get(timeout=1.0)
+                self._send_kafka(jpeg, ts_ns)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                log.warning("%s kafka_loop error: %s", self.name, e)
+
     def _send_kafka(self, jpeg: bytes, ts_ns: int):
         value = struct.pack(">QI", ts_ns, len(jpeg)) + jpeg
-        get_kafka().produce(
+        self._kafka_client.produce(
             topic=BROKER_TOPICS[self.name],
             value=value,
             key=f"{VEHICLE_ID}/{ts_ns}",
