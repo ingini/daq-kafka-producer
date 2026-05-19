@@ -305,8 +305,11 @@ class CameraWorker:
                     self._last_jpeg = jpeg
                 if _usb_available():
                     self._save_local(jpeg, ts_ns)
-                # USB 없을 때 cam 개별 Kafka 전송 안 함
-                # → fused 토픽(sensor.fused)에 cam이 포함되어 전송됨
+                else:
+                    try:
+                        self._kafka_q.put_nowait((jpeg, ts_ns))
+                    except queue.Full:
+                        log.debug("%s kafka queue full, drop frame", self.name)
         except Exception as e:
             log.error("CameraWorker %s error: %s", self.name, e)
         finally:
