@@ -53,7 +53,6 @@ import daq_service_pb2 as pb
 import daq_service_pb2_grpc as pb_grpc
 
 from kafka_client import get_kafka, new_kafka
-from fused_producer import FusedFrameProducer
 
 import websocket
 
@@ -86,8 +85,6 @@ BROKER_TOPICS   = {
 }
 
 SENSOR_NAMES = ["cam0", "cam1", "cam2", "gnss", "cpu/storage"]
-
-_fused = FusedFrameProducer()
 
 
 # ── USB helper ────────────────────────────────────────────────
@@ -291,6 +288,8 @@ class CameraWorker:
             "!", "videorate",
             "!", f"video/x-raw,framerate={CAM_PUBLISH_FPS}/1",
             "!", "videoconvert",
+            "!", "videoscale",
+            "!", f"video/x-raw,width={CAM_WIDTH},height={CAM_HEIGHT}",
             "!", "jpegenc", f"quality={JPEG_QUALITY}",
             "!", "fdsink", "fd=1",
         ]
@@ -304,7 +303,6 @@ class CameraWorker:
                 ts_ns = time.time_ns()
                 with self._lock:
                     self._last_jpeg = jpeg
-                _fused.put_cam(self.cam_id, jpeg, ts_ns)
                 if _usb_available():
                     self._save_local(jpeg, ts_ns)
                 # USB 없을 때 cam 개별 Kafka 전송 안 함
@@ -636,7 +634,6 @@ class GnssWorker:
                 log.debug("GnssWorker: lat=%.6f lon=%.6f postype=%s",
                           data["latitude"], data["longitude"], data["postype"])
 
-                _fused.put_gnss(data, data["ts_ns"])
 
                 if _usb_available():
                     self._jsonl.append(data)
@@ -811,7 +808,6 @@ async def serve():
     pb_grpc.add_ServiceServicer_to_server(DaqServicer(), server)
     server.add_insecure_port(f"0.0.0.0:{GRPC_PORT}")
     await server.start()
-    _fused.start()
     log.info("daq-service listening  port=%d  fps=%d", GRPC_PORT, CAM_PUBLISH_FPS)
     log.info("USB_MOUNT_ROOT=%s  usb=%s", USB_MOUNT_ROOT, _usb_available())
     log.info("GNSS  tcp=%s:%d  ws=ws://%s/webSocket",
@@ -819,7 +815,6 @@ async def serve():
     try:
         await server.wait_for_termination()
     finally:
-        _fused.stop()
         get_kafka().close()
 
 
