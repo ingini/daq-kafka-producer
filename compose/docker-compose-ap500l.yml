@@ -12,12 +12,9 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
-    devices:
-      - ${CAM0_DEVICE:-/dev/video0}:${CAM0_DEVICE:-/dev/video0}
-      - ${CAM1_DEVICE:-/dev/video1}:${CAM1_DEVICE:-/dev/video1}
-      - ${CAM2_DEVICE:-/dev/video2}:${CAM2_DEVICE:-/dev/video2}
     volumes:
       - /media/swm:/media/swm:rw
+      - /dev:/dev
     env_file:
       - ./config/config.env
     environment:

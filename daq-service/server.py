@@ -260,23 +260,6 @@ class CameraWorker:
     def start(self):
         if self._running:
             return
-        # 기존 GStreamer 프로세스가 디바이스 점유 중이면 강제 정리
-        try:
-            subprocess.run(
-                ["fuser", "-k", self.device],
-                capture_output=True, timeout=3
-            )
-            time.sleep(0.3)
-        except Exception:
-            pass
-        # 기존 프로세스 kill
-        if self._proc:
-            try:
-                self._proc.kill()
-                self._proc.wait(timeout=1)
-            except Exception:
-                pass
-            self._proc = None
         self._running = True
         self._kafka_client = new_kafka()   # 카메라 전용 독립 client
         self._thread       = threading.Thread(target=self._run, daemon=True)
@@ -467,7 +450,11 @@ class BynavX1Proxy(threading.Thread):
                 self._ws.close()
             except Exception:
                 pass
-        self.join(timeout=3)
+        try:
+            if threading.Thread.is_alive(self):
+                self.join(timeout=3)
+        except Exception:
+            pass
 
     def has_data(self) -> bool:
         with self._lock:
@@ -720,8 +707,12 @@ class DaqServicer(pb_grpc.ServiceServicer):
             ok    = os.path.exists(CAM_DEVICES[int(name[-1])])
             state = pb.Connection.State.CONNECTED if ok else pb.Connection.State.DISCONNECTED
         else:
-            # gnss: WebSocket proxy 살아있는지
-            ok    = (self._gnss._proxy is not None and self._gnss._proxy.is_alive())
+            # gnss: WebSocket proxy 살아있는지 (start() 전 is_alive() 호출 시 TypeError 방지)
+            try:
+                ok = (self._gnss._proxy is not None and
+                      threading.Thread.is_alive(self._gnss._proxy))
+            except Exception:
+                ok = False
             state = pb.Connection.State.CONNECTED if ok else pb.Connection.State.DISCONNECTED
         return pb.Connection(name=name, state=state)
 
