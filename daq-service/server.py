@@ -619,8 +619,10 @@ class GnssWorker:
                     "type":      "gnss_pos",
                     "ts_ns":     raw.get("ts_ns",   time.time_ns()),
                     "gps_ts":    raw.get("ts_ns",   time.time_ns()) / 1e9,
-                    "latitude":  raw.get("lat",      0.0),
-                    "longitude": raw.get("lon",      0.0),
+                    "lat":       raw.get("lat",      0.0),   # app GnssData 키와 일치
+                    "lon":       raw.get("lon",      0.0),   # app GnssData 키와 일치
+                    "latitude":  raw.get("lat",      0.0),   # consumer 호환
+                    "longitude": raw.get("lon",      0.0),   # consumer 호환
                     "height":    raw.get("height",   0.0),
                     "vel_north": 0.0,
                     "vel_east":  0.0,
