@@ -260,6 +260,23 @@ class CameraWorker:
     def start(self):
         if self._running:
             return
+        # 기존 GStreamer 프로세스가 디바이스 점유 중이면 강제 정리
+        try:
+            subprocess.run(
+                ["fuser", "-k", self.device],
+                capture_output=True, timeout=3
+            )
+            time.sleep(0.3)
+        except Exception:
+            pass
+        # 기존 프로세스 kill
+        if self._proc:
+            try:
+                self._proc.kill()
+                self._proc.wait(timeout=1)
+            except Exception:
+                pass
+            self._proc = None
         self._running = True
         self._kafka_client = new_kafka()   # 카메라 전용 독립 client
         self._thread       = threading.Thread(target=self._run, daemon=True)
@@ -274,9 +291,13 @@ class CameraWorker:
         if self._proc:
             try:
                 self._proc.terminate()
-                self._proc.wait(timeout=3)
+                self._proc.wait(timeout=2)
             except Exception:
-                pass
+                try:
+                    self._proc.kill()
+                    self._proc.wait(timeout=1)
+                except Exception:
+                    pass
             self._proc = None
         log.info("CameraWorker %s stopped", self.name)
 
@@ -295,7 +316,7 @@ class CameraWorker:
         ]
         try:
             self._proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             while self._running:
                 jpeg = self._read_jpeg_frame()
                 if jpeg is None:
@@ -389,8 +410,11 @@ class FakeReceiver(threading.Thread):
                 self._sock.close()
             except Exception:
                 pass
-        if self.is_alive():
-            self.join(timeout=3)
+        try:
+            if threading.Thread.is_alive(self):
+                self.join(timeout=3)
+        except Exception:
+            pass
 
     def run(self):
         buf_size = 1024 * 1024
