@@ -138,6 +138,62 @@ def _usb_disk_usage() -> dict:
     return {"total": u.total, "used": u.used, "free": u.free}
 
 
+# ── StorageWorker ─────────────────────────────────────────────
+USB_POLL_INTERVAL = float(os.environ.get("USB_POLL_INTERVAL", "3.0"))
+
+class StorageWorker(threading.Thread):
+    """
+    USB(SSD) 마운트 상태를 USB_POLL_INTERVAL(default 3초)마다 polling.
+    - gateway DeviceReqBuffer 캐시와 무관하게 service 내부 상태를 항상 최신으로 유지
+    - is_connected / is_healthy / get_snapshot RPC는 이 캐시를 즉시 반환
+    - _usb_available() / _find_usb_mount() 는 CameraWorker, GnssWorker 에서
+      그대로 직접 호출해도 무방 (파일 읽기라 부담 없음)
+    """
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._stop_ev  = threading.Event()
+        self._lock     = threading.Lock()
+        self._mount:   Optional[str] = None   # 현재 마운트 경로 (없으면 None)
+        self._usage:   dict = {"total": 0, "used": 0, "free": 0}
+
+    def stop(self):
+        self._stop_ev.set()
+        self.join(timeout=5)
+
+    def run(self):
+        while not self._stop_ev.is_set():
+            mount = _find_usb_mount()
+            if mount:
+                try:
+                    u = shutil.disk_usage(mount)
+                    usage = {"total": u.total, "used": u.used, "free": u.free}
+                except Exception as e:
+                    log.warning("StorageWorker disk_usage error: %s", e)
+                    usage = {"total": 0, "used": 0, "free": 0}
+            else:
+                usage = {"total": 0, "used": 0, "free": 0}
+
+            with self._lock:
+                prev = self._mount
+                self._mount = mount
+                self._usage = usage
+
+            if prev != mount:
+                log.info("StorageWorker: USB mount changed  %s → %s", prev, mount)
+
+            self._stop_ev.wait(timeout=USB_POLL_INTERVAL)
+
+    # ── 조회 (RPC 핸들러에서 호출) ────────────────────────────
+    def is_mounted(self) -> bool:
+        with self._lock:
+            return self._mount is not None
+
+    def disk_usage(self) -> dict:
+        with self._lock:
+            return dict(self._usage)
+
+
 # ── Parquet appender ─────────────────────────────────────────
 class JsonlAppender:
     """
@@ -677,9 +733,10 @@ class GnssWorker:
 # ── gRPC Servicer ─────────────────────────────────────────────
 class DaqServicer(pb_grpc.ServiceServicer):
 
-    def __init__(self):
-        self._cams = [CameraWorker(i, CAM_DEVICES[i]) for i in range(3)]
-        self._gnss = GnssWorker()
+    def __init__(self, storage_worker: StorageWorker):
+        self._cams    = [CameraWorker(i, CAM_DEVICES[i]) for i in range(3)]
+        self._gnss    = GnssWorker()
+        self._storage = storage_worker
         self._workers = {
             "cam0":        self._cams[0],
             "cam1":        self._cams[1],
@@ -697,7 +754,7 @@ class DaqServicer(pb_grpc.ServiceServicer):
     async def is_connected(self, request, context):
         name = request.name
         if name == "cpu/storage":
-            usb   = _usb_available()
+            usb   = self._storage.is_mounted()
             state = pb.Connection.State.CONNECTED if usb else pb.Connection.State.DISCONNECTED
             return pb.Connection(name=name, state=state)
         w = self._workers.get(name)
@@ -719,7 +776,7 @@ class DaqServicer(pb_grpc.ServiceServicer):
     async def is_healthy(self, request, context):
         name = request.name
         if name == "cpu/storage":
-            usb    = _usb_available()
+            usb    = self._storage.is_mounted()
             status = pb.Health.Status.GOOD if usb else pb.Health.Status.BAAD
             return pb.Health(name=name, status=status,
                              reason="" if usb else "USB not mounted")
@@ -752,7 +809,7 @@ class DaqServicer(pb_grpc.ServiceServicer):
         name = request.name
         if name == "cpu/storage":
             return pb.SensorSnapshot(name=name, content_type="application/json",
-                                     data=json.dumps(_usb_disk_usage()).encode())
+                                     data=json.dumps(self._storage.disk_usage()).encode())
         w = self._workers.get(name)
         if w is None:
             return pb.SensorSnapshot(name=name)
@@ -769,7 +826,7 @@ class DaqServicer(pb_grpc.ServiceServicer):
 
     async def get_snapshots(self, request, context):
         snaps = [pb.SensorSnapshot(name="cpu/storage", content_type="application/json",
-                                   data=json.dumps(_usb_disk_usage()).encode())]
+                                   data=json.dumps(self._storage.disk_usage()).encode())]
         for name, w in self._workers.items():
             if name == "cpu/storage" or w is None:
                 continue
@@ -824,17 +881,22 @@ class DaqServicer(pb_grpc.ServiceServicer):
 
 # ── main ──────────────────────────────────────────────────────
 async def serve():
+    storage = StorageWorker()
+    storage.start()
+    log.info("StorageWorker started  poll_interval=%.1fs", USB_POLL_INTERVAL)
+
     server = aio.server()
-    pb_grpc.add_ServiceServicer_to_server(DaqServicer(), server)
+    pb_grpc.add_ServiceServicer_to_server(DaqServicer(storage), server)
     server.add_insecure_port(f"0.0.0.0:{GRPC_PORT}")
     await server.start()
     log.info("daq-service listening  port=%d  fps=%d", GRPC_PORT, CAM_PUBLISH_FPS)
-    log.info("USB_MOUNT_ROOT=%s  usb=%s", USB_MOUNT_ROOT, _usb_available())
+    log.info("USB_MOUNT_ROOT=%s  usb=%s", USB_MOUNT_ROOT, storage.is_mounted())
     log.info("GNSS  tcp=%s:%d  ws=ws://%s/webSocket",
              GNSS_SRC_IP, GNSS_TCP_PORT, GNSS_SRC_IP)
     try:
         await server.wait_for_termination()
     finally:
+        storage.stop()
         get_kafka().close()
 
 
