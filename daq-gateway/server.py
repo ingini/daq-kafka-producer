@@ -140,9 +140,12 @@ class DeviceReqBuffer(threading.Thread):
                     self._health[name]    = (resp.status, resp.reason)
                     self._health_ts[name] = now
             except grpc.RpcError as e:
+                # RPC 실패 시 ts를 갱신하지 않음
+                # → TTL이 만료되면 get_health()가 BAAD("stale") 반환하고
+                #   다음 주기에 재시도하므로 BAAD 고착 방지
                 with self._health_lock:
-                    self._health[name]    = (svc_pb.Health.Status.BAAD, str(e))
-                    self._health_ts[name] = now
+                    self._health[name] = (svc_pb.Health.Status.BAAD, str(e))
+                log.debug("_refresh_health RPC failed for %s: %s", name, e)
 
     def _refresh_snapshots(self):
         try:
